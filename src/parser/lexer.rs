@@ -65,11 +65,11 @@ impl<'input> iter::Iterator for Lexer<'input> {
         let next_token = match self.peek() {
             None => return None,
             Some('(') => {
-                self.input.next();
+                self.consume();
                 Ok(Token::OpenParen)
             }
             Some(')') => {
-                self.input.next();
+                self.consume();
                 Ok(Token::CloseParen)
             }
             Some(ch) if ch.is_numeric() => {
