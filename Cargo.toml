@@ -2,6 +2,6 @@
 name = "ubiquity"
 version = "0.1.0"
 authors = ["Alex Stokes <r.alex.stokes@gmail.com>"]
+edition = "2018"
 
 [dependencies]
-nom = "4.0.0"
