@@ -172,7 +172,7 @@ impl<'a> Parser {
     }
 
     fn depth_for_delimiter(&mut self, delimiter: Delimiter) -> isize {
-        *self.delimiter_nesting.get(&delimiter).unwrap()
+        self.delimiter_nesting[&delimiter]
     }
 
     fn parse_seq<P, T>(&mut self, delimiter: Delimiter, parser: P, tokens: &mut T) -> Result<Ast>
@@ -187,10 +187,10 @@ impl<'a> Parser {
         if entry_depth == exit_depth {
             node
         } else if entry_depth < exit_depth {
-            return Err(Error::UnbalancedDelimiter(
+            Err(Error::UnbalancedDelimiter(
                 Delimiter::Paren,
                 self.get_token_index(),
-            ));
+            ))
         } else {
             unreachable!()
         }
