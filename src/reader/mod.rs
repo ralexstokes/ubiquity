@@ -2,7 +2,9 @@ mod lexer;
 mod parser;
 
 use self::lexer::Lexer;
-use self::parser::{Ast, Parser, Result};
+use self::parser::{Parser, Result};
+
+pub use self::parser::Ast;
 
 pub use self::lexer::lex;
 

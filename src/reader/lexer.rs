@@ -72,6 +72,28 @@ pub enum Delimiter {
     Brace,   // {}
 }
 
+impl Delimiter {
+    pub fn open_char(&self) -> char {
+        use self::Delimiter::*;
+
+        match self {
+            Paren => OPEN_PAREN,
+            Bracket => OPEN_BRACKET,
+            Brace => OPEN_BRACE,
+        }
+    }
+
+    pub fn close_char(&self) -> char {
+        use self::Delimiter::*;
+
+        match self {
+            Paren => CLOSE_PAREN,
+            Bracket => CLOSE_BRACKET,
+            Brace => CLOSE_BRACE,
+        }
+    }
+}
+
 /// Lexer contains the logic to lex individual tokens from the input source.
 #[derive(Debug)]
 pub struct Lexer<'input> {

@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 use std::convert;
+use std::fmt;
 use std::num;
 use std::result;
+
+use itertools::Itertools;
 
 use super::lexer::{Delimiter, Error as LexerError, Result as LexerResult, Token};
 
@@ -27,6 +30,41 @@ pub enum Ast {
     Vector(Vec<Ast>),
     Map(Vec<Ast>),
     Set(Vec<Ast>),
+}
+
+impl Ast {
+    fn fmt_seq<'a>(
+        f: &mut fmt::Formatter,
+        nodes: impl IntoIterator<Item = &'a Ast>,
+        delimiter: Delimiter,
+    ) -> fmt::Result {
+        write!(f, "{}", delimiter.open_char())?;
+        write!(f, "{}", nodes.into_iter().format(" "))?;
+        write!(f, "{}", delimiter.close_char())
+    }
+}
+
+impl fmt::Display for Ast {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use self::Ast::*;
+
+        match self {
+            Nil => write!(f, "nil"),
+            Bool(b) => write!(f, "{}", b),
+            Number(n) => write!(f, "{}", n),
+            String(s) => write!(f, r#""{}""#, s),
+            Comment(c) => write!(f, "{}", c),
+            Symbol(s) => write!(f, "{}", s),
+            Keyword(k) => write!(f, ":{}", k),
+            List(nodes) => Ast::fmt_seq(f, nodes, Delimiter::Paren),
+            Vector(nodes) => Ast::fmt_seq(f, nodes, Delimiter::Bracket),
+            Map(nodes) => Ast::fmt_seq(f, nodes, Delimiter::Brace),
+            Set(nodes) => {
+                write!(f, "#")?;
+                Ast::fmt_seq(f, nodes, Delimiter::Brace)
+            }
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
