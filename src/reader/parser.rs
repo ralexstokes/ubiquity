@@ -361,7 +361,8 @@ mod tests {
         ]),
         can_parse_expr: (r#"
                               (reduce (fn-with-meta
-                                        {:docs "add two numbers"}
+                                        {:docs "add two numbers"
+                                         :args #{:a :b}}
                                         [a b]
                                           (+ a b)) (range 10 2)) ;; find a sum
                          "#, vec![
@@ -371,7 +372,12 @@ mod tests {
                                      Ast::Symbol("fn-with-meta".into()),
                                      Ast::Map(vec![
                                          Ast::Keyword("docs".into()),
-                                         Ast::String("add two numbers".into())
+                                         Ast::String("add two numbers".into()),
+                                         Ast::Keyword("args".into()),
+                                         Ast::Set(vec![
+                                             Ast::Keyword("a".into()),
+                                             Ast::Keyword("b".into()),
+                                         ])
                                      ]),
                                      Ast::Vector(vec![
                                          Ast::Symbol("a".into()),
