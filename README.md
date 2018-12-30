@@ -1,5 +1,7 @@
 # ubiquity
 
+[![Build Status](https://travis-ci.org/ralexstokes/ubiquity.svg?branch=master)](https://travis-ci.org/ralexstokes/ubiquity)
+
 # about the language
 
 `ubiquity` is a Lisp language inspired by Clojure.
