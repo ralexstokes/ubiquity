@@ -73,7 +73,7 @@ pub enum Delimiter {
 }
 
 impl Delimiter {
-    pub fn open_char(&self) -> char {
+    pub fn open_char(self) -> char {
         use self::Delimiter::*;
 
         match self {
@@ -83,7 +83,7 @@ impl Delimiter {
         }
     }
 
-    pub fn close_char(&self) -> char {
+    pub fn close_char(self) -> char {
         use self::Delimiter::*;
 
         match self {
