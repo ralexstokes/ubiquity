@@ -10,7 +10,7 @@ pub fn read(input: &str) -> Result<Vec<Ast>> {
     let mut lexer = Lexer::new(input);
 
     let mut parser = Parser::new();
-    parser.parse_from(&mut lexer)
+    parser.parse_tokens(&mut lexer)
 }
 
 #[cfg(test)]

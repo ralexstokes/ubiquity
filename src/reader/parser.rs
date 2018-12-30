@@ -68,10 +68,10 @@ impl<'a> Parser {
         }
     }
 
-    /// parse_from takes an `Iterator` over `LexerResult<Token>` and attempts to parse a full AST from them.
+    /// parse_tokens takes an `Iterator` over `LexerResult<Token>` and attempts to parse a full AST from them.
     // NOTE: we require a `&mut T` so that we can recurse over the token stream. The borrowing could be simplified with
     // `&mut tokens` but then the compiler hits a recursion limit while attempting to monomorphize the function.
-    pub fn parse_from<T>(&mut self, tokens: &mut T) -> Result<Vec<Ast>>
+    pub fn parse_tokens<T>(&mut self, tokens: &mut T) -> Result<Vec<Ast>>
     where
         T: Iterator<Item = LexerResult<Token<'a>>>,
     {
@@ -255,7 +255,7 @@ mod tests {
         let mut lexer = Lexer::new(input);
 
         let mut parser = Parser::new();
-        parser.parse_from(&mut lexer)
+        parser.parse_tokens(&mut lexer)
     }
 
     macro_rules! parse_tests {
