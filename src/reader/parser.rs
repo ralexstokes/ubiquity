@@ -15,7 +15,6 @@ static KEYWORD_CHAR: char = ':';
 static NIL_LITERAL: &str = "nil";
 static TRUE_LITERAL: &str = "true";
 static FALSE_LITERAL: &str = "false";
-static DISPATCH_LITERAL: &str = "#";
 
 #[derive(Debug, PartialEq, Hash, Eq)]
 pub enum Ast {
@@ -137,31 +136,21 @@ impl<'a> Parser {
             let token = result?;
             let node = match token {
                 Token::Open(Delimiter::Paren) => {
-                    self.parse_seq(Delimiter::Paren, Parser::parse_list, tokens.by_ref())?
+                    self.parse_seq(Delimiter::Paren, Ast::List, tokens.by_ref())?
                 }
                 Token::Close(Delimiter::Paren) => {
                     self.dec_depth(Delimiter::Paren);
                     break;
                 }
                 Token::Open(Delimiter::Bracket) => {
-                    self.parse_seq(Delimiter::Bracket, Parser::parse_vector, tokens.by_ref())?
+                    self.parse_seq(Delimiter::Bracket, Ast::Vector, tokens.by_ref())?
                 }
                 Token::Close(Delimiter::Bracket) => {
                     self.dec_depth(Delimiter::Bracket);
                     break;
                 }
                 Token::Open(Delimiter::Brace) => {
-                    let node =
-                        self.parse_seq(Delimiter::Brace, Parser::parse_map, tokens.by_ref())?;
-                    if nodes.ends_with(&[Ast::Symbol(DISPATCH_LITERAL.into())]) {
-                        nodes.pop();
-                        match node {
-                            Ast::Map(items) => Ast::Set(items),
-                            _ => unreachable!(),
-                        }
-                    } else {
-                        node
-                    }
+                    self.parse_seq(Delimiter::Brace, Ast::Map, tokens.by_ref())?
                 }
                 Token::Close(Delimiter::Brace) => {
                     self.dec_depth(Delimiter::Brace);
@@ -171,6 +160,11 @@ impl<'a> Parser {
                 Token::String(input) => self.parse_string(input)?,
                 Token::Comment(input) => self.parse_comment(input)?,
                 Token::Symbol(input) => self.parse_symbol(input)?,
+                Token::Dispatch => {
+                    let node = self.parse_dispatch(tokens.by_ref())?;
+                    nodes.push(node);
+                    break;
+                }
             };
 
             nodes.push(node)
@@ -213,49 +207,36 @@ impl<'a> Parser {
         self.delimiter_nesting[&delimiter]
     }
 
-    fn parse_seq<P, T>(&mut self, delimiter: Delimiter, parser: P, tokens: &mut T) -> Result<Ast>
-    where
-        P: Fn(&mut Parser, &mut T) -> Result<Ast>,
-        T: Iterator<Item = LexerResult<Token<'a>>>,
-    {
-        let entry_depth = self.inc_depth(delimiter);
-        let node = parser(self, tokens);
-        let exit_depth = self.depth_for_delimiter(delimiter);
-
-        if entry_depth == exit_depth {
-            node
-        } else if entry_depth < exit_depth {
-            Err(Error::UnbalancedDelimiter(
-                Delimiter::Paren,
-                self.get_token_index(),
-            ))
         } else {
-            unreachable!()
         }
     }
 
-    fn parse_list<T>(&mut self, tokens: &mut T) -> Result<Ast>
-    where
-        T: Iterator<Item = LexerResult<Token<'a>>>,
-    {
-        let nodes = self.parse_form(tokens.by_ref())?;
-        Ok(Ast::List(nodes))
     }
 
-    fn parse_vector<T>(&mut self, tokens: &mut T) -> Result<Ast>
-    where
-        T: Iterator<Item = LexerResult<Token<'a>>>,
-    {
-        let nodes = self.parse_form(tokens.by_ref())?;
-        Ok(Ast::Vector(nodes))
-    }
+    fn get_unbalanced_index_for(&self, delimiter: Delimiter) -> Option<usize> {}
 
-    fn parse_map<T>(&mut self, tokens: &mut T) -> Result<Ast>
+    fn parse_seq<T, C>(
+        &mut self,
+        delimiter: Delimiter,
+        constructor: C,
+        tokens: &mut T,
+    ) -> Result<Ast>
     where
+        C: Fn(Vec<Ast>) -> Ast,
         T: Iterator<Item = LexerResult<Token<'a>>>,
     {
-        let nodes = self.parse_form(tokens.by_ref())?;
-        Ok(Ast::Map(nodes))
+        let entry_depth = self.inc_depth(delimiter);
+        let nodes = self.parse_form(tokens)?;
+        let exit_depth = self.get_depth_for(delimiter);
+
+        if entry_depth < exit_depth {
+            return Err(Error::UnbalancedDelimiter(
+                delimiter,
+                self.get_unbalanced_index_for(delimiter),
+            ));
+        }
+
+        Ok(constructor(nodes))
     }
 
     fn parse_number(&mut self, value: &str) -> Result<Ast> {
@@ -280,6 +261,21 @@ impl<'a> Parser {
                 Ok(Ast::Keyword(symbol[KEYWORD_CHAR.len_utf8()..].into()))
             }
             symbol => Ok(Ast::Symbol(symbol.into())),
+        }
+    }
+
+    fn parse_dispatch<T>(&mut self, tokens: &mut T) -> Result<Ast>
+    where
+        T: Iterator<Item = LexerResult<Token<'a>>>,
+    {
+        let mut nodes = self.parse_form(tokens)?;
+        if nodes.len() != 1 {
+            panic!("reader dispatch is not fully implemented")
+        }
+        let nodes = nodes.pop().unwrap();
+        match nodes {
+            Ast::Map(nodes) => Ok(Ast::Set(nodes)),
+            _ => unimplemented!(),
         }
     }
 }
@@ -396,6 +392,40 @@ mod tests {
                 Ast::Number(1),
                 Ast::Number(2)
             ])
+        ]),
+        can_parse_expr_example: ("(first {:args #{:a :b}})", vec![
+            Ast::List(vec![
+                Ast::Symbol("first".into()),
+                Ast::Map(vec![
+                    Ast::Keyword("args".into()),
+                    Ast::Set(vec![
+                        Ast::Keyword("a".into()),
+                        Ast::Keyword("b".into()),
+                    ])
+                ])
+            ])
+        ]),
+        can_parse_with_set: (r#"(reduce (fn-with-meta #{:a :b}))"#, vec![
+            Ast::List(vec![
+                Ast::Symbol("reduce".into()),
+                Ast::List(vec![
+                    Ast::Symbol("fn-with-meta".into()),
+                    Ast::Set(vec![
+                        Ast::Keyword("a".into()),
+                        Ast::Keyword("b".into()),
+                    ])
+                ]),
+            ])
+        ]),
+        can_parse_nested_lists_and_map: ("(({})) ;; hi", vec![
+            Ast::List(vec![
+                Ast::List(vec![Ast::Map(vec![])])]),
+            Ast::Comment("; hi".into()),
+        ]),
+        can_parse_nested_lists_and_set: ("((#{})) ;; hi", vec![
+            Ast::List(vec![
+                Ast::List(vec![Ast::Set(vec![])])]),
+            Ast::Comment("; hi".into()),
         ]),
         can_parse_expr: (r#"
                               (reduce (fn-with-meta

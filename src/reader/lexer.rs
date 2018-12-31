@@ -14,6 +14,7 @@ const CLOSE_BRACE: char = '}';
 const COMMENT_CHAR: char = ';';
 const STRING_CHAR: char = '"';
 const NEWLINE_CHAR: char = '\n';
+const DISPATCH_CHAR: char = '#';
 
 lazy_static! {
     /// SPECIAL_CHARS indicate a leading character indicative of a
@@ -29,6 +30,7 @@ lazy_static! {
         set.insert(COMMENT_CHAR);
         set.insert(STRING_CHAR);
         set.insert(NEWLINE_CHAR);
+        set.insert(DISPATCH_CHAR);
 
         set
     };
@@ -63,6 +65,7 @@ pub enum Token<'input> {
     String(&'input str),
     Comment(&'input str),
     Symbol(&'input str),
+    Dispatch,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -219,6 +222,12 @@ impl<'input> Lexer<'input> {
     fn is_whitespace(ch: char) -> bool {
         ch.is_whitespace() || ch == ','
     }
+
+    fn consume_dispatch(&mut self) -> Result<Token<'input>> {
+        self.consume()
+            .map(|_| Token::Dispatch)
+            .ok_or(Error::Internal)
+    }
 }
 
 impl<'a> iter::Iterator for Lexer<'a> {
@@ -239,6 +248,7 @@ impl<'a> iter::Iterator for Lexer<'a> {
             Some(&(_, STRING_CHAR)) => self.consume_string(),
             Some(&(_, COMMENT_CHAR)) => self.consume_comment(),
             Some(&(_, ch)) if Lexer::is_symbolic(ch) => self.consume_symbol(),
+            Some(&(_, DISPATCH_CHAR)) => self.consume_dispatch(),
             Some(&(index, ch)) => Err(Error::UnrecognizedToken(index, ch)),
         };
         Some(next_token)
@@ -505,6 +515,30 @@ mod tests {
 
         let input = ":a";
         let expected_tokens = vec![Token::Symbol(":a")];
+        run_lex_test(input, expected_tokens);
+
+        let input = "#:a";
+        let expected_tokens = vec![Token::Dispatch, Token::Symbol(":a")];
+        run_lex_test(input, expected_tokens);
+    }
+
+    #[test]
+    fn can_lex_dispatch() {
+        let input = "#";
+        let expected_tokens = vec![Token::Dispatch];
+        run_lex_test(input, expected_tokens);
+
+        let input = "((#{}))";
+        let expected_tokens = vec![
+            Token::Open(Delimiter::Paren),
+            Token::Open(Delimiter::Paren),
+            Token::Dispatch,
+            Token::Open(Delimiter::Brace),
+            Token::Close(Delimiter::Brace),
+            Token::Close(Delimiter::Paren),
+            Token::Close(Delimiter::Paren),
+        ];
+
         run_lex_test(input, expected_tokens);
     }
 
