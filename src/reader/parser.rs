@@ -10,6 +10,8 @@ use super::lexer::{Delimiter, Error as LexerError, Result as LexerResult, Token}
 
 pub type Result<T> = result::Result<T, Error>;
 
+const INITIAL_NESTING_DEPTH: usize = 10;
+
 static KEYWORD_CHAR: char = ':';
 
 static NIL_LITERAL: &str = "nil";
@@ -92,15 +94,44 @@ impl convert::From<num::ParseIntError> for Error {
     }
 }
 
+#[derive(Debug)]
+struct DelimiterCounter {
+    count: isize,
+    indices: Vec<usize>,
+}
+
+impl DelimiterCounter {
+    fn new(initial_capacity: usize) -> Self {
+        Self {
+            count: 0,
+            indices: Vec::with_capacity(initial_capacity),
+        }
+    }
+}
+
 pub struct Parser {
-    delimiter_nesting: HashMap<Delimiter, isize>,
+    delimiter_nesting: HashMap<Delimiter, DelimiterCounter>,
     token_index: Option<usize>,
 }
 
 impl<'a> Parser {
     pub fn new() -> Self {
+        let mut delimiter_nesting = HashMap::new();
+        delimiter_nesting.insert(
+            Delimiter::Paren,
+            DelimiterCounter::new(INITIAL_NESTING_DEPTH),
+        );
+        delimiter_nesting.insert(
+            Delimiter::Bracket,
+            DelimiterCounter::new(INITIAL_NESTING_DEPTH),
+        );
+        delimiter_nesting.insert(
+            Delimiter::Brace,
+            DelimiterCounter::new(INITIAL_NESTING_DEPTH),
+        );
+
         Self {
-            delimiter_nesting: HashMap::new(),
+            delimiter_nesting,
             token_index: None,
         }
     }
@@ -114,11 +145,8 @@ impl<'a> Parser {
     {
         let ast = self.parse_form(tokens)?;
 
-        if let Some(delimiter) = self.outstanding_delimiters() {
-            Err(Error::UnbalancedDelimiter(
-                delimiter,
-                self.get_token_index(),
-            ))
+        if let Some((delimiter, index)) = self.outstanding_delimiters() {
+            Err(Error::UnbalancedDelimiter(delimiter, index))
         } else {
             Ok(ast)
         }
@@ -173,47 +201,55 @@ impl<'a> Parser {
         Ok(nodes)
     }
 
-    fn get_token_index(&mut self) -> usize {
-        let index = self.token_index.get_or_insert(0);
-        *index - 1
-    }
-
     fn increment_token_index(&mut self) {
-        let index = self.token_index.get_or_insert(0);
-        *index += 1;
-    }
-
-    // outstanding_delimiters prevents leaking AST nodes
-    fn outstanding_delimiters(&self) -> Option<Delimiter> {
-        self.delimiter_nesting
-            .iter()
-            .find_map(|(k, &v)| if v < 0 { Some(*k) } else { None })
-    }
-
-    fn inc_depth(&mut self, delimiter: Delimiter) -> isize {
-        let entry = self.delimiter_nesting.entry(delimiter).or_default();
-        let result = *entry;
-        *entry += 1;
-        result
-    }
-
-    fn dec_depth(&mut self, delimiter: Delimiter) -> isize {
-        let entry = self.delimiter_nesting.entry(delimiter).or_default();
-        *entry -= 1;
-        *entry
-    }
-
-    fn depth_for_delimiter(&mut self, delimiter: Delimiter) -> isize {
-        self.delimiter_nesting[&delimiter]
-    }
-
+        if let Some(index) = self.token_index.as_mut() {
+            *index += 1;
         } else {
+            self.token_index = Some(0);
         }
     }
 
+    // outstanding_delimiters prevents leaking AST nodes
+    fn outstanding_delimiters(&mut self) -> Option<(Delimiter, usize)> {
+        if let Some((&delimiter, counter)) =
+            self.delimiter_nesting.iter_mut().find(|(_, v)| v.count < 0)
+        {
+            if let Some(index) = counter.indices.pop() {
+                Some((delimiter, index))
+            } else {
+                Some((delimiter, self.token_index.unwrap()))
+            }
+        } else {
+            None
+        }
     }
 
-    fn get_unbalanced_index_for(&self, delimiter: Delimiter) -> Option<usize> {}
+    fn inc_depth(&mut self, delimiter: Delimiter) -> isize {
+        let index = self.token_index.unwrap();
+        let counter = self.delimiter_nesting.get_mut(&delimiter).unwrap();
+        counter.count += 1;
+        counter.indices.push(index);
+        counter.count
+    }
+
+    fn dec_depth(&mut self, delimiter: Delimiter) {
+        let counter = self.delimiter_nesting.get_mut(&delimiter).unwrap();
+        counter.count -= 1;
+    }
+
+    fn get_depth_for(&self, delimiter: Delimiter) -> isize {
+        // add one to account for decrement that *should* have occurred
+        self.delimiter_nesting[&delimiter].count + 1
+    }
+
+    fn get_unbalanced_index_for(&self, delimiter: Delimiter) -> usize {
+        *self.delimiter_nesting[&delimiter].indices.last().unwrap()
+    }
+
+    fn adjust_depth_indices(&mut self, delimiter: Delimiter) {
+        let counter = self.delimiter_nesting.get_mut(&delimiter).unwrap();
+        counter.indices.pop();
+    }
 
     fn parse_seq<T, C>(
         &mut self,
@@ -236,6 +272,7 @@ impl<'a> Parser {
             ));
         }
 
+        self.adjust_depth_indices(delimiter);
         Ok(constructor(nodes))
     }
 
@@ -298,7 +335,8 @@ mod tests {
                 #[test]
                 fn $name() {
                     let (input, expected): (&str, Vec<Ast>) = $value;
-                    assert_eq!(expected, run_parse(input).unwrap());
+                    let result = run_parse(input).unwrap();
+                    assert_eq!(expected, result);
                 }
             )*
         }
@@ -488,6 +526,10 @@ mod tests {
         let result = run_parse(input);
         assert_eq!(result, Err(Error::UnbalancedDelimiter(Delimiter::Paren, 2)));
 
+        let input = "hi there) foo bar";
+        let result = run_parse(input);
+        assert_eq!(result, Err(Error::UnbalancedDelimiter(Delimiter::Paren, 2)));
+
         let input = "hi(";
         let result = run_parse(input);
         assert_eq!(result, Err(Error::UnbalancedDelimiter(Delimiter::Paren, 1)));
@@ -512,12 +554,23 @@ mod tests {
             result,
             Err(Error::UnbalancedDelimiter(Delimiter::Bracket, 0))
         );
+
+        let input = "][ 1 2 []";
+        let result = run_parse(input);
+        assert_eq!(
+            result,
+            Err(Error::UnbalancedDelimiter(Delimiter::Bracket, 0))
+        );
     }
 
     #[test]
     fn can_parse_unbalanced_maps() {
         let input = "{:a 1";
         let result = run_parse(input);
-        assert_eq!(result, Err(Error::UnbalancedDelimiter(Delimiter::Brace, 0)));
+        assert_eq!(Err(Error::UnbalancedDelimiter(Delimiter::Brace, 0)), result);
+
+        let input = "}:a 1}";
+        let result = run_parse(input);
+        assert_eq!(Err(Error::UnbalancedDelimiter(Delimiter::Brace, 0)), result);
     }
 }
