@@ -211,14 +211,9 @@ impl<'a> Parser {
 
     // outstanding_delimiters prevents leaking AST nodes
     fn outstanding_delimiters(&mut self) -> Option<(Delimiter, usize)> {
-        if let Some((&delimiter, counter)) =
-            self.delimiter_nesting.iter_mut().find(|(_, v)| v.count < 0)
+        if let Some((&delimiter, _)) = self.delimiter_nesting.iter_mut().find(|(_, v)| v.count < 0)
         {
-            if let Some(index) = counter.indices.pop() {
-                Some((delimiter, index))
-            } else {
-                Some((delimiter, self.token_index.unwrap()))
-            }
+            Some((delimiter, self.token_index.unwrap()))
         } else {
             None
         }
