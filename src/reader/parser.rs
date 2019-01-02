@@ -18,7 +18,7 @@ static NIL_LITERAL: &str = "nil";
 static TRUE_LITERAL: &str = "true";
 static FALSE_LITERAL: &str = "false";
 
-#[derive(Debug, PartialEq, Hash, Eq)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Expr {
     Nil,
     Bool(bool),
@@ -31,7 +31,17 @@ pub enum Expr {
     Vector(Vec<Expr>),
     Map(Vec<Expr>),
     Set(Vec<Expr>),
+    Fn(FnDecl),
+    PrimitiveFn(HostFn),
 }
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub struct FnDecl {
+    pub params: Vec<Expr>,
+    pub body: Vec<Expr>,
+}
+
+pub type HostFn = fn(Vec<Expr>) -> Result<Expr>;
 
 impl Expr {
     fn fmt_seq<'a>(
@@ -64,6 +74,13 @@ impl fmt::Display for Expr {
                 write!(f, "#")?;
                 Expr::fmt_seq(f, nodes, Delimiter::Brace)
             }
+            Fn(FnDecl { params, body }) => {
+                write!(f, "(fn* [")?;
+                write!(f, "{}] ", params.iter().format(" "))?;
+                write!(f, "{}", body.iter().format(" "))?;
+                write!(f, ")")
+            }
+            PrimitiveFn(host_fn) => write!(f, "{:?}", host_fn),
         }
     }
 }
