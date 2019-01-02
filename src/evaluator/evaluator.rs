@@ -8,10 +8,15 @@ static FN_SYMBOL: &'static str = "fn*";
 
 pub type Result<T> = result::Result<T, Error>;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Error {
     FnMissingArgumentVector,
     InsufficientArguments,
+    UnboundSymbol(Expr),
+    /// WrongArity indicates a `fn*` evaluation where the number of args passed did not match the number of params requested.
+    // (number_requested, number_provided)
+    WrongArity(usize, usize),
+    Internal,
     ParserError(ParserError),
 }
 
@@ -22,10 +27,13 @@ impl convert::From<ParserError> for Error {
 }
 
 pub fn eval(exprs: Vec<Expr>, env: &mut Env) -> Vec<Result<Expr>> {
-    exprs.into_iter().map(eval_expr).collect::<Vec<Result<_>>>()
+    exprs
+        .into_iter()
+        .map(|expr| eval_expr(expr, env))
+        .collect::<Vec<Result<_>>>()
 }
 
-fn eval_expr(expr: Expr) -> Result<Expr> {
+fn eval_expr(expr: Expr, env: &mut Env) -> Result<Expr> {
     use self::Expr::*;
 
     let node = match expr {
@@ -34,27 +42,27 @@ fn eval_expr(expr: Expr) -> Result<Expr> {
         Number(n) => Number(n),
         String(s) => String(s),
         Comment(s) => Comment(s),
-        Symbol(s) => eval_symbol(s)?,
+        Symbol(s) => eval_symbol(s, env)?,
         Keyword(s) => Keyword(s),
-        List(exprs) => eval_list(exprs)?,
+        List(exprs) => eval_list(exprs, env)?,
         Vector(exprs) => {
             let results = exprs
                 .into_iter()
-                .map(eval_expr)
+                .map(|expr| eval_expr(expr, env))
                 .collect::<Result<Vec<_>>>()?;
             Vector(results)
         }
         Map(exprs) => {
             let results = exprs
                 .into_iter()
-                .map(eval_expr)
+                .map(|expr| eval_expr(expr, env))
                 .collect::<Result<Vec<_>>>()?;
             Map(results)
         }
         Set(exprs) => {
             let results = exprs
                 .into_iter()
-                .map(eval_expr)
+                .map(|expr| eval_expr(expr, env))
                 .collect::<Result<Vec<_>>>()?;
             Set(results)
         }
@@ -64,22 +72,31 @@ fn eval_expr(expr: Expr) -> Result<Expr> {
     Ok(node)
 }
 
-fn eval_symbol(symbol: String) -> Result<Expr> {
-    Ok(Expr::Symbol(symbol))
+fn eval_symbol(symbol: String, env: &mut Env) -> Result<Expr> {
+    env.lookup(&symbol)
+        .ok_or(Error::UnboundSymbol(Expr::Symbol(symbol)))
+        .map(|referent| referent.clone())
 }
 
-fn eval_list(exprs: Vec<Expr>) -> Result<Expr> {
+fn eval_list(exprs: Vec<Expr>, env: &mut Env) -> Result<Expr> {
     if let Some((first, rest)) = exprs.split_first() {
-        eval_list_dispatch(first, rest)
+        eval_list_dispatch(first, rest, env)
     } else {
         Ok(Expr::List(exprs))
     }
 }
 
-fn eval_list_dispatch(first: &Expr, rest: &[Expr]) -> Result<Expr> {
+fn eval_list_dispatch(first: &Expr, rest: &[Expr], env: &mut Env) -> Result<Expr> {
     match first {
         Expr::Symbol(s) if s == FN_SYMBOL => eval_fn(rest),
-        _ => apply(first, rest),
+        _ => eval_expr(first.clone(), env).and_then(|op| {
+            let args = rest
+                .iter()
+                .cloned()
+                .map(|arg| eval_expr(arg, env))
+                .collect::<Result<Vec<_>>>()?;
+            apply(&op, args.as_slice(), env)
+        }),
     }
 }
 
@@ -96,11 +113,36 @@ fn eval_fn(exprs: &[Expr]) -> Result<Expr> {
         })
 }
 
-fn apply(op: &Expr, args: &[Expr]) -> Result<Expr> {
+// zip_for_env zips the `params` to the `args` so that the environment can be extended with the appropriate bindings.
+fn zip_for_env(params: &[Expr], args: &[Expr]) -> Result<Vec<(String, Expr)>> {
+    if params.len() != args.len() {
+        return Err(Error::WrongArity(params.len(), args.len()));
+    }
+
+    Ok(params
+        .iter()
+        .filter_map(|param| match param {
+            Expr::Symbol(s) => Some(s.clone()),
+            _ => None,
+        })
+        .zip(args.iter().cloned())
+        .collect::<Vec<_>>())
+}
+
+fn apply(op: &Expr, args: &[Expr], env: &mut Env) -> Result<Expr> {
     match op {
         Expr::Fn(FnDecl { params, body }) => {
-            let expr = Expr::Bool(true); // build extended expr
-            eval_expr(expr)
+            let mut local_env = Env::with_parent(env);
+            let bindings = zip_for_env(params, args)?;
+            local_env.add_bindings(bindings.as_slice());
+
+            eval(body.clone(), &mut local_env)
+                .split_last()
+                .ok_or(Error::Internal)
+                .and_then(|(last, _)| match last {
+                    Ok(result) => Ok(result.clone()),
+                    Err(e) => Err(e.clone()),
+                })
         }
         Expr::PrimitiveFn(host_fn) => host_fn(args.to_vec()).map_err(|e| e.into()),
         _ => unimplemented!(),
@@ -109,12 +151,12 @@ fn apply(op: &Expr, args: &[Expr]) -> Result<Expr> {
 
 #[cfg(test)]
 mod tests {
-    use super::Env;
+    use super::super::prelude;
     use super::Expr::*;
     use super::*;
 
     fn run_eval(exprs: Vec<Expr>) -> Vec<Result<Expr>> {
-        let mut env = Env::new();
+        let mut env = prelude::env();
         eval(exprs, &mut env)
     }
 
@@ -124,9 +166,11 @@ mod tests {
                 #[test]
                 fn $name() {
                     let (input, expected): (Vec<Expr>, Vec<Expr>) = $value;
-                    let result = run_eval(input);
                     let expected_results: Vec<Result<Expr>> = expected.into_iter().map(|expr| Ok(expr)).collect();
-                    assert_eq!(expected_results, result);
+
+                    let results = run_eval(input);
+
+                    assert_eq!(expected_results, results);
                 }
             )*
         }
@@ -134,6 +178,29 @@ mod tests {
 
     eval_tests! {
         can_eval_empty: (vec![], vec![]),
+        can_eval_simple_arith: (vec![
+            List(vec![
+                Symbol("+".into()),
+                Number(2),
+                Number(2),
+            ]),
+        ], vec![Number(4)]),
+        can_eval_fn: (vec![
+            List(vec![
+                List(vec![
+                    Symbol("fn*".into()),
+                    Vector(vec![
+                        Symbol("a".into())
+                    ]),
+                    List(vec![
+                        Symbol("+".into()),
+                        Symbol("a".into()),
+                        Number(1),
+                    ])
+                ]),
+                Number(1),
+            ])
+        ], vec![Number(2)]),
         can_eval_literals: (vec![
             Nil,
             Bool(true),
@@ -141,13 +208,10 @@ mod tests {
             Number(33),
             String("hi".into()),
             Comment("; some comment".into()),
-            Symbol("there".into()),
             Keyword("a".into()),
             List(vec![]),
-            List(vec![Symbol("hi".into())]),
             Vector(vec![]),
             Vector(vec![
-                Symbol("hi".into()),
                 Keyword("a".into()),
                 Number(22),
                 String("hi".into()),
@@ -169,13 +233,10 @@ mod tests {
             Number(33),
             String("hi".into()),
             Comment("; some comment".into()),
-            Symbol("there".into()),
             Keyword("a".into()),
             List(vec![]),
-            List(vec![Symbol("hi".into())]),
             Vector(vec![]),
             Vector(vec![
-                Symbol("hi".into()),
                 Keyword("a".into()),
                 Number(22),
                 String("hi".into()),
