@@ -43,16 +43,14 @@ pub struct FnDecl {
 
 pub type HostFn = fn(Vec<Expr>) -> Result<Expr>;
 
-impl Expr {
-    fn fmt_seq<'a>(
-        f: &mut fmt::Formatter,
-        nodes: impl IntoIterator<Item = &'a Expr>,
-        delimiter: Delimiter,
-    ) -> fmt::Result {
-        write!(f, "{}", delimiter.open_char())?;
-        write!(f, "{}", nodes.into_iter().format(" "))?;
-        write!(f, "{}", delimiter.close_char())
-    }
+fn fmt_seq<'a>(
+    f: &mut fmt::Formatter,
+    nodes: impl IntoIterator<Item = &'a Expr>,
+    delimiter: Delimiter,
+) -> fmt::Result {
+    write!(f, "{}", delimiter.open_char())?;
+    write!(f, "{}", nodes.into_iter().format(" "))?;
+    write!(f, "{}", delimiter.close_char())
 }
 
 impl fmt::Display for Expr {
@@ -67,12 +65,12 @@ impl fmt::Display for Expr {
             Comment(c) => write!(f, "{}", c),
             Symbol(s) => write!(f, "{}", s),
             Keyword(k) => write!(f, ":{}", k),
-            List(nodes) => Expr::fmt_seq(f, nodes, Delimiter::Paren),
-            Vector(nodes) => Expr::fmt_seq(f, nodes, Delimiter::Bracket),
-            Map(nodes) => Expr::fmt_seq(f, nodes, Delimiter::Brace),
+            List(nodes) => fmt_seq(f, nodes, Delimiter::Paren),
+            Vector(nodes) => fmt_seq(f, nodes, Delimiter::Bracket),
+            Map(nodes) => fmt_seq(f, nodes, Delimiter::Brace),
             Set(nodes) => {
                 write!(f, "#")?;
-                Expr::fmt_seq(f, nodes, Delimiter::Brace)
+                fmt_seq(f, nodes, Delimiter::Brace)
             }
             Fn(FnDecl { params, body }) => {
                 write!(f, "(fn* [")?;
