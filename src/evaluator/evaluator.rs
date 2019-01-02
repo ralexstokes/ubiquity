@@ -66,7 +66,7 @@ fn eval_expr(expr: Expr, env: &mut Env) -> Result<Expr> {
                 .collect::<Result<Vec<_>>>()?;
             Set(results)
         }
-        Fn(FnDecl { params, body }) => Vector(vec![]),
+        Fn(FnDecl { params, body }) => Fn(FnDecl { params, body }),
         PrimitiveFn(host_fn) => PrimitiveFn(host_fn),
     };
     Ok(node)
