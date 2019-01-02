@@ -100,7 +100,7 @@ mod tests {
                 Keyword("a".into()),
                 Number(22),
                 String("hi".into()),
-                String("there".into()), //
+                String("there".into()),
                 String("eval".into())
             ]),
             Map(vec![]),
