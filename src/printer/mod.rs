@@ -2,8 +2,8 @@ use std::io;
 
 use itertools::Itertools;
 
-use super::reader::Ast;
+use super::reader::Expr;
 
-pub fn print_to(ast: &[Ast], mut out: impl io::Write) -> io::Result<()> {
+pub fn print_to(ast: &[Expr], mut out: impl io::Write) -> io::Result<()> {
     write!(&mut out, "{}", ast.iter().format(" "))
 }

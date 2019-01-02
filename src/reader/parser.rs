@@ -19,7 +19,7 @@ static TRUE_LITERAL: &str = "true";
 static FALSE_LITERAL: &str = "false";
 
 #[derive(Debug, PartialEq, Hash, Eq)]
-pub enum Ast {
+pub enum Expr {
     Nil,
     Bool(bool),
     Number(i64),
@@ -27,16 +27,16 @@ pub enum Ast {
     Comment(String),
     Symbol(String),
     Keyword(String),
-    List(Vec<Ast>),
-    Vector(Vec<Ast>),
-    Map(Vec<Ast>),
-    Set(Vec<Ast>),
+    List(Vec<Expr>),
+    Vector(Vec<Expr>),
+    Map(Vec<Expr>),
+    Set(Vec<Expr>),
 }
 
-impl Ast {
+impl Expr {
     fn fmt_seq<'a>(
         f: &mut fmt::Formatter,
-        nodes: impl IntoIterator<Item = &'a Ast>,
+        nodes: impl IntoIterator<Item = &'a Expr>,
         delimiter: Delimiter,
     ) -> fmt::Result {
         write!(f, "{}", delimiter.open_char())?;
@@ -45,9 +45,9 @@ impl Ast {
     }
 }
 
-impl fmt::Display for Ast {
+impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use self::Ast::*;
+        use self::Expr::*;
 
         match self {
             Nil => write!(f, "nil"),
@@ -57,12 +57,12 @@ impl fmt::Display for Ast {
             Comment(c) => write!(f, "{}", c),
             Symbol(s) => write!(f, "{}", s),
             Keyword(k) => write!(f, ":{}", k),
-            List(nodes) => Ast::fmt_seq(f, nodes, Delimiter::Paren),
-            Vector(nodes) => Ast::fmt_seq(f, nodes, Delimiter::Bracket),
-            Map(nodes) => Ast::fmt_seq(f, nodes, Delimiter::Brace),
+            List(nodes) => Expr::fmt_seq(f, nodes, Delimiter::Paren),
+            Vector(nodes) => Expr::fmt_seq(f, nodes, Delimiter::Bracket),
+            Map(nodes) => Expr::fmt_seq(f, nodes, Delimiter::Brace),
             Set(nodes) => {
                 write!(f, "#")?;
-                Ast::fmt_seq(f, nodes, Delimiter::Brace)
+                Expr::fmt_seq(f, nodes, Delimiter::Brace)
             }
         }
     }
@@ -74,7 +74,7 @@ pub enum Error {
     UnbalancedDelimiter(Delimiter, usize),
     UnbalancedString(usize),
     UnrecognizedToken(usize, char),
-    MissingPairInMap(Vec<Ast>),
+    MissingPairInMap(Vec<Expr>),
     // ParseIntError(&'a str),
 }
 
@@ -139,7 +139,7 @@ impl<'a> Parser {
     /// parse_tokens takes an `Iterator` over `LexerResult<Token>` and attempts to parse a full AST from them.
     // NOTE: we require a `&mut T` so that we can recurse over the token stream. The borrowing could be simplified with
     // `&mut tokens` but then the compiler hits a recursion limit while attempting to monomorphize the function.
-    pub fn parse_tokens<T>(&mut self, tokens: &mut T) -> Result<Vec<Ast>>
+    pub fn parse_tokens<T>(&mut self, tokens: &mut T) -> Result<Vec<Expr>>
     where
         T: Iterator<Item = LexerResult<Token<'a>>>,
     {
@@ -152,7 +152,7 @@ impl<'a> Parser {
         }
     }
 
-    pub fn parse_form<T>(&mut self, tokens: &mut T) -> Result<Vec<Ast>>
+    pub fn parse_form<T>(&mut self, tokens: &mut T) -> Result<Vec<Expr>>
     where
         T: Iterator<Item = LexerResult<Token<'a>>>,
     {
@@ -164,21 +164,21 @@ impl<'a> Parser {
             let token = result?;
             let node = match token {
                 Token::Open(Delimiter::Paren) => {
-                    self.parse_seq(Delimiter::Paren, Ast::List, tokens.by_ref())?
+                    self.parse_seq(Delimiter::Paren, Expr::List, tokens.by_ref())?
                 }
                 Token::Close(Delimiter::Paren) => {
                     self.dec_depth(Delimiter::Paren);
                     break;
                 }
                 Token::Open(Delimiter::Bracket) => {
-                    self.parse_seq(Delimiter::Bracket, Ast::Vector, tokens.by_ref())?
+                    self.parse_seq(Delimiter::Bracket, Expr::Vector, tokens.by_ref())?
                 }
                 Token::Close(Delimiter::Bracket) => {
                     self.dec_depth(Delimiter::Bracket);
                     break;
                 }
                 Token::Open(Delimiter::Brace) => {
-                    self.parse_seq(Delimiter::Brace, Ast::Map, tokens.by_ref())?
+                    self.parse_seq(Delimiter::Brace, Expr::Map, tokens.by_ref())?
                 }
                 Token::Close(Delimiter::Brace) => {
                     self.dec_depth(Delimiter::Brace);
@@ -250,9 +250,9 @@ impl<'a> Parser {
         delimiter: Delimiter,
         constructor: C,
         tokens: &mut T,
-    ) -> Result<Ast>
+    ) -> Result<Expr>
     where
-        C: Fn(Vec<Ast>) -> Ast,
+        C: Fn(Vec<Expr>) -> Expr,
         T: Iterator<Item = LexerResult<Token<'a>>>,
     {
         let entry_depth = self.inc_depth(delimiter);
@@ -270,32 +270,32 @@ impl<'a> Parser {
         Ok(constructor(nodes))
     }
 
-    fn parse_number(&mut self, value: &str) -> Result<Ast> {
+    fn parse_number(&mut self, value: &str) -> Result<Expr> {
         let number = value.parse()?;
-        Ok(Ast::Number(number))
+        Ok(Expr::Number(number))
     }
 
-    fn parse_string(&mut self, value: &str) -> Result<Ast> {
-        Ok(Ast::String(value.into()))
+    fn parse_string(&mut self, value: &str) -> Result<Expr> {
+        Ok(Expr::String(value.into()))
     }
 
-    fn parse_comment(&mut self, value: &str) -> Result<Ast> {
-        Ok(Ast::Comment(value.into()))
+    fn parse_comment(&mut self, value: &str) -> Result<Expr> {
+        Ok(Expr::Comment(value.into()))
     }
 
-    fn parse_symbol(&mut self, value: &str) -> Result<Ast> {
+    fn parse_symbol(&mut self, value: &str) -> Result<Expr> {
         match value {
-            _sym if _sym == NIL_LITERAL => Ok(Ast::Nil),
-            _sym if _sym == TRUE_LITERAL => Ok(Ast::Bool(true)),
-            _sym if _sym == FALSE_LITERAL => Ok(Ast::Bool(false)),
+            _sym if _sym == NIL_LITERAL => Ok(Expr::Nil),
+            _sym if _sym == TRUE_LITERAL => Ok(Expr::Bool(true)),
+            _sym if _sym == FALSE_LITERAL => Ok(Expr::Bool(false)),
             symbol if symbol.starts_with(KEYWORD_CHAR) => {
-                Ok(Ast::Keyword(symbol[KEYWORD_CHAR.len_utf8()..].into()))
+                Ok(Expr::Keyword(symbol[KEYWORD_CHAR.len_utf8()..].into()))
             }
-            symbol => Ok(Ast::Symbol(symbol.into())),
+            symbol => Ok(Expr::Symbol(symbol.into())),
         }
     }
 
-    fn parse_dispatch<T>(&mut self, tokens: &mut T) -> Result<Ast>
+    fn parse_dispatch<T>(&mut self, tokens: &mut T) -> Result<Expr>
     where
         T: Iterator<Item = LexerResult<Token<'a>>>,
     {
@@ -305,7 +305,7 @@ impl<'a> Parser {
         }
         let nodes = nodes.pop().unwrap();
         match nodes {
-            Ast::Map(nodes) => Ok(Ast::Set(nodes)),
+            Expr::Map(nodes) => Ok(Expr::Set(nodes)),
             _ => unimplemented!(),
         }
     }
@@ -316,7 +316,7 @@ mod tests {
     use super::super::lexer::Lexer;
     use super::*;
 
-    fn run_parse(input: &str) -> Result<Vec<Ast>> {
+    fn run_parse(input: &str) -> Result<Vec<Expr>> {
         let mut lexer = Lexer::new(input);
 
         let mut parser = Parser::new();
@@ -328,7 +328,7 @@ mod tests {
             $(
                 #[test]
                 fn $name() {
-                    let (input, expected): (&str, Vec<Ast>) = $value;
+                    let (input, expected): (&str, Vec<Expr>) = $value;
                     let result = run_parse(input).unwrap();
                     assert_eq!(expected, result);
                 }
@@ -338,126 +338,126 @@ mod tests {
 
     parse_tests! {
         can_parse_empty_input: ("", vec![]),
-        can_parse_nil: ("nil", vec![Ast::Nil]),
-        can_parse_true: ("true", vec![Ast::Bool(true)]),
-        can_parse_false: ("false", vec![Ast::Bool(false)]),
-        can_parse_numbers: ("3", vec![Ast::Number(3)]),
+        can_parse_nil: ("nil", vec![Expr::Nil]),
+        can_parse_true: ("true", vec![Expr::Bool(true)]),
+        can_parse_false: ("false", vec![Expr::Bool(false)]),
+        can_parse_numbers: ("3", vec![Expr::Number(3)]),
         can_parse_numbers_multi: ("3 4 5", vec![
-            Ast::Number(3),
-            Ast::Number(4),
-            Ast::Number(5)
+            Expr::Number(3),
+            Expr::Number(4),
+            Expr::Number(5)
         ]),
-        can_parse_empty_string: (r#""""#, vec![Ast::String("".into())]),
-        can_parse_strings: (r#""hi, there""#, vec![Ast::String("hi, there".into())]),
+        can_parse_empty_string: (r#""""#, vec![Expr::String("".into())]),
+        can_parse_strings: (r#""hi, there""#, vec![Expr::String("hi, there".into())]),
         can_parse_symbols: ("+ a b", vec![
-            Ast::Symbol("+".into()),
-            Ast::Symbol("a".into()),
-            Ast::Symbol("b".into())
+            Expr::Symbol("+".into()),
+            Expr::Symbol("a".into()),
+            Expr::Symbol("b".into())
         ]),
         can_parse_symbols_whitespace: ("hi, there    ", vec![
-            Ast::Symbol("hi".into()),
-            Ast::Symbol("there".into()),
+            Expr::Symbol("hi".into()),
+            Expr::Symbol("there".into()),
         ]),
         can_parse_symbols_with_punctuation: ("+ a22 b34- $", vec![
-            Ast::Symbol("+".into()),
-            Ast::Symbol("a22".into()),
-            Ast::Symbol("b34-".into()),
-            Ast::Symbol("$".into())
+            Expr::Symbol("+".into()),
+            Expr::Symbol("a22".into()),
+            Expr::Symbol("b34-".into()),
+            Expr::Symbol("$".into())
         ]),
         can_parse_special_symbols: ("abc nil true false not-nil true33", vec![
-            Ast::Symbol("abc".into()),
-            Ast::Nil,
-            Ast::Bool(true),
-            Ast::Bool(false),
-            Ast::Symbol("not-nil".into()),
-            Ast::Symbol("true33".into()),
+            Expr::Symbol("abc".into()),
+            Expr::Nil,
+            Expr::Bool(true),
+            Expr::Bool(false),
+            Expr::Symbol("not-nil".into()),
+            Expr::Symbol("true33".into()),
         ]),
         can_parse_keywords: (":a :b :cc :def234 :sdfou--", vec![
-            Ast::Keyword("a".into()),
-            Ast::Keyword("b".into()),
-            Ast::Keyword("cc".into()),
-            Ast::Keyword("def234".into()),
-            Ast::Keyword("sdfou--".into()),
+            Expr::Keyword("a".into()),
+            Expr::Keyword("b".into()),
+            Expr::Keyword("cc".into()),
+            Expr::Keyword("def234".into()),
+            Expr::Keyword("sdfou--".into()),
         ]),
         can_parse_tricky_keywords: (":*() :: :ns/var :nil :true :false", vec![
-            Ast::Keyword("*".into()),
-            Ast::List(vec![]),
-            Ast::Keyword(":".into()),
-            Ast::Keyword("ns/var".into()),
-            Ast::Keyword("nil".into()),
-            Ast::Keyword("true".into()),
-            Ast::Keyword("false".into()),
+            Expr::Keyword("*".into()),
+            Expr::List(vec![]),
+            Expr::Keyword(":".into()),
+            Expr::Keyword("ns/var".into()),
+            Expr::Keyword("nil".into()),
+            Expr::Keyword("true".into()),
+            Expr::Keyword("false".into()),
         ]),
-        can_parse_empty_list: ("()", vec![Ast::List(vec![])]),
+        can_parse_empty_list: ("()", vec![Expr::List(vec![])]),
         can_parse_multiple_empty_lists: ("() ()", vec![
-            Ast::List(vec![]),
-            Ast::List(vec![])
+            Expr::List(vec![]),
+            Expr::List(vec![])
         ]),
         can_parse_list: ("( + 1 2)", vec![
-            Ast::List(vec![
-            Ast::Symbol("+".into()),
-            Ast::Number(1),
-            Ast::Number(2)
+            Expr::List(vec![
+            Expr::Symbol("+".into()),
+            Expr::Number(1),
+            Expr::Number(2)
         ])]),
         can_parse_nested_empty_lists: ("(()) ()", vec![
-            Ast::List(vec![
-                Ast::List(vec![])
+            Expr::List(vec![
+                Expr::List(vec![])
             ]),
-            Ast::List(vec![])
+            Expr::List(vec![])
         ]),
         can_parse_vector: ("[:a 1 3]", vec![
-            Ast::Vector(vec![
-                Ast::Keyword("a".into()),
-                Ast::Number(1),
-                Ast::Number(3)])
+            Expr::Vector(vec![
+                Expr::Keyword("a".into()),
+                Expr::Number(1),
+                Expr::Number(3)])
         ]),
-        can_parse_empty_vector: ("[]", vec![Ast::Vector(vec![])]),
+        can_parse_empty_vector: ("[]", vec![Expr::Vector(vec![])]),
         can_parse_map: ("{:a 1}", vec![
-            Ast::Map(vec![
-                Ast::Keyword("a".into()),
-                Ast::Number(1)])
+            Expr::Map(vec![
+                Expr::Keyword("a".into()),
+                Expr::Number(1)])
         ]),
-        can_parse_empty_map: ("{}", vec![Ast::Map(vec![])]),
-        can_parse_empty_set: ("#{}", vec![Ast::Set(vec![])]),
+        can_parse_empty_map: ("{}", vec![Expr::Map(vec![])]),
+        can_parse_empty_set: ("#{}", vec![Expr::Set(vec![])]),
         can_parse_set: ("#{1 2}", vec![
-            Ast::Set(vec![
-                Ast::Number(1),
-                Ast::Number(2)
+            Expr::Set(vec![
+                Expr::Number(1),
+                Expr::Number(2)
             ])
         ]),
         can_parse_expr_example: ("(first {:args #{:a :b}})", vec![
-            Ast::List(vec![
-                Ast::Symbol("first".into()),
-                Ast::Map(vec![
-                    Ast::Keyword("args".into()),
-                    Ast::Set(vec![
-                        Ast::Keyword("a".into()),
-                        Ast::Keyword("b".into()),
+            Expr::List(vec![
+                Expr::Symbol("first".into()),
+                Expr::Map(vec![
+                    Expr::Keyword("args".into()),
+                    Expr::Set(vec![
+                        Expr::Keyword("a".into()),
+                        Expr::Keyword("b".into()),
                     ])
                 ])
             ])
         ]),
         can_parse_with_set: (r#"(reduce (fn-with-meta #{:a :b}))"#, vec![
-            Ast::List(vec![
-                Ast::Symbol("reduce".into()),
-                Ast::List(vec![
-                    Ast::Symbol("fn-with-meta".into()),
-                    Ast::Set(vec![
-                        Ast::Keyword("a".into()),
-                        Ast::Keyword("b".into()),
+            Expr::List(vec![
+                Expr::Symbol("reduce".into()),
+                Expr::List(vec![
+                    Expr::Symbol("fn-with-meta".into()),
+                    Expr::Set(vec![
+                        Expr::Keyword("a".into()),
+                        Expr::Keyword("b".into()),
                     ])
                 ]),
             ])
         ]),
         can_parse_nested_lists_and_map: ("(({})) ;; hi", vec![
-            Ast::List(vec![
-                Ast::List(vec![Ast::Map(vec![])])]),
-            Ast::Comment("; hi".into()),
+            Expr::List(vec![
+                Expr::List(vec![Expr::Map(vec![])])]),
+            Expr::Comment("; hi".into()),
         ]),
         can_parse_nested_lists_and_set: ("((#{})) ;; hi", vec![
-            Ast::List(vec![
-                Ast::List(vec![Ast::Set(vec![])])]),
-            Ast::Comment("; hi".into()),
+            Expr::List(vec![
+                Expr::List(vec![Expr::Set(vec![])])]),
+            Expr::Comment("; hi".into()),
         ]),
         can_parse_expr: (r#"
                               (reduce (fn-with-meta
@@ -466,36 +466,36 @@ mod tests {
                                         [a b]
                                           (+ a b)) (range 10 2)) ;; find a sum
                          "#, vec![
-                             Ast::List(vec![
-                                 Ast::Symbol("reduce".into()),
-                                 Ast::List(vec![
-                                     Ast::Symbol("fn-with-meta".into()),
-                                     Ast::Map(vec![
-                                         Ast::Keyword("docs".into()),
-                                         Ast::String("add two numbers".into()),
-                                         Ast::Keyword("args".into()),
-                                         Ast::Set(vec![
-                                             Ast::Keyword("a".into()),
-                                             Ast::Keyword("b".into()),
+                             Expr::List(vec![
+                                 Expr::Symbol("reduce".into()),
+                                 Expr::List(vec![
+                                     Expr::Symbol("fn-with-meta".into()),
+                                     Expr::Map(vec![
+                                         Expr::Keyword("docs".into()),
+                                         Expr::String("add two numbers".into()),
+                                         Expr::Keyword("args".into()),
+                                         Expr::Set(vec![
+                                             Expr::Keyword("a".into()),
+                                             Expr::Keyword("b".into()),
                                          ])
                                      ]),
-                                     Ast::Vector(vec![
-                                         Ast::Symbol("a".into()),
-                                         Ast::Symbol("b".into())
+                                     Expr::Vector(vec![
+                                         Expr::Symbol("a".into()),
+                                         Expr::Symbol("b".into())
                                      ]),
-                                     Ast::List(vec![
-                                         Ast::Symbol("+".into()),
-                                         Ast::Symbol("a".into()),
-                                         Ast::Symbol("b".into())
+                                     Expr::List(vec![
+                                         Expr::Symbol("+".into()),
+                                         Expr::Symbol("a".into()),
+                                         Expr::Symbol("b".into())
                                      ])
                                  ]),
-                                 Ast::List(vec![
-                                     Ast::Symbol("range".into()),
-                                     Ast::Number(10),
-                                     Ast::Number(2),
+                                 Expr::List(vec![
+                                     Expr::Symbol("range".into()),
+                                     Expr::Number(10),
+                                     Expr::Number(2),
                                  ])
                              ]),
-                             Ast::Comment("; find a sum".into())
+                             Expr::Comment("; find a sum".into())
                          ]),
     }
 
