@@ -4,7 +4,7 @@ mod parser;
 use self::lexer::Lexer;
 use self::parser::Parser;
 
-pub use self::parser::{Error, Expr, FnDecl, Result};
+pub use self::parser::{Error, Expr, FnDecl, HostFn, Result};
 
 pub use self::lexer::lex;
 

@@ -1,8 +1,8 @@
-use crate::reader::{Expr, Result};
+use crate::reader::{Expr, HostFn, Result};
 
 use super::env::Env;
 
-fn plus(args: Vec<Expr>) -> Result<Expr> {
+fn add(args: Vec<Expr>) -> Result<Expr> {
     Ok(Expr::Number(
         args.into_iter()
             .map(|arg| match arg {
@@ -13,12 +13,17 @@ fn plus(args: Vec<Expr>) -> Result<Expr> {
     ))
 }
 
-static PRELUDE_BINDINGS: &[(&str, Expr)] = &[("+", Expr::PrimitiveFn(plus))];
+static PRELUDE_BINDINGS: &[(&str, &str, HostFn)] = &[("+", "add", add)];
 
 pub fn env() -> Env<'static> {
     let bindings = PRELUDE_BINDINGS
         .into_iter()
-        .map(|(k, v)| (String::from(*k), v.clone()))
+        .map(|(k, name, host_fn)| {
+            (
+                String::from(*k),
+                Expr::PrimitiveFn(String::from(*name), *host_fn),
+            )
+        })
         .collect::<Vec<(String, Expr)>>();
     let mut env = Env::new();
     env.add_bindings(bindings.as_slice());
