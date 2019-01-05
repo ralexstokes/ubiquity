@@ -34,7 +34,7 @@ pub enum Expr {
     Map(Vec<Expr>),
     Set(Vec<Expr>),
     Fn(FnDecl),
-    PrimitiveFn(HostFn),
+    PrimitiveFn(String, HostFn),
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -80,7 +80,7 @@ impl fmt::Display for Expr {
                 write!(f, "{}", body.iter().format(" "))?;
                 write!(f, ")")
             }
-            PrimitiveFn(host_fn) => write!(f, "{:?}", host_fn),
+            PrimitiveFn(name, host_fn) => write!(f, "#<primitive: {:?}> {:?}", name, host_fn),
         }
     }
 }

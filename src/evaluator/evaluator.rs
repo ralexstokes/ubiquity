@@ -67,7 +67,7 @@ fn eval_expr(expr: Expr, env: &mut Env) -> Result<Expr> {
             Set(results)
         }
         Fn(FnDecl { params, body }) => Fn(FnDecl { params, body }),
-        PrimitiveFn(host_fn) => PrimitiveFn(host_fn),
+        PrimitiveFn(name, host_fn) => PrimitiveFn(name, host_fn),
     };
     Ok(node)
 }
@@ -144,7 +144,7 @@ fn apply(op: &Expr, args: &[Expr], env: &mut Env) -> Result<Expr> {
                     Err(e) => Err(e.clone()),
                 })
         }
-        Expr::PrimitiveFn(host_fn) => host_fn(args.to_vec()).map_err(|e| e.into()),
+        Expr::PrimitiveFn(_, host_fn) => host_fn(args.to_vec()).map_err(|e| e.into()),
         _ => unimplemented!(),
     }
 }
