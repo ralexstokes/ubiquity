@@ -80,7 +80,7 @@ impl fmt::Display for Expr {
                 write!(f, "{}", body.iter().format(" "))?;
                 write!(f, ")")
             }
-            PrimitiveFn(name, host_fn) => write!(f, "#<primitive: {:?}> {:?}", name, host_fn),
+            PrimitiveFn(name, _) => write!(f, "#<primitive: `{}`>", name),
         }
     }
 }
