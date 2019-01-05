@@ -33,7 +33,7 @@ pub fn eval(exprs: Vec<Expr>, env: &mut Env) -> Vec<Result<Expr>> {
         .collect::<Vec<Result<_>>>()
 }
 
-fn eval_expr(expr: Expr, env: &mut Env) -> Result<Expr> {
+pub fn eval_expr(expr: Expr, env: &mut Env) -> Result<Expr> {
     use self::Expr::*;
 
     let node = match expr {

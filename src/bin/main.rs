@@ -1,7 +1,7 @@
 use std::io;
 
+use ubiquity::evaluator;
 use ubiquity::printer;
-use ubiquity::reader;
 
 fn main() -> io::Result<()> {
     let input = r#"
@@ -12,7 +12,13 @@ fn main() -> io::Result<()> {
       (+ a b)) (range 10 2)) ;; find a sum
   "#;
 
-    let ast = reader::read(input).unwrap();
+    let results = evaluator::eval(input);
+    printer::print_to(results.as_slice(), io::stdout())?;
 
-    printer::print_to(&ast, io::stdout())
+    println!("");
+
+    let input = "(+ 2 2)";
+    let results = evaluator::eval(input);
+
+    printer::print_to(results.as_slice(), io::stdout())
 }
