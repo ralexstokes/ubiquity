@@ -8,11 +8,11 @@ pub use self::parser::{Error, Expr, FnDecl, Result};
 
 pub use self::lexer::lex;
 
-pub fn read(input: &str) -> Result<Vec<Expr>> {
-    let mut lexer = Lexer::new(input);
+pub fn read(input: &str) -> Vec<Result<Expr>> {
+    let lexer = Lexer::new(input);
 
     let mut parser = Parser::new();
-    parser.parse_tokens(&mut lexer)
+    parser.run(lexer)
 }
 
 #[cfg(test)]
@@ -23,14 +23,14 @@ mod tests {
     #[test]
     fn can_read_expr() {
         let input = "(+ 2 3)";
-        let expr = read(input).unwrap();
+        let expr = read(input).pop().unwrap();
         assert_eq!(
             expr,
-            vec![Expr::List(vec![
+            Ok(Expr::List(vec![
                 Expr::Symbol("+".into()),
                 Expr::Number(2),
-                Expr::Number(3),
-            ])]
+                Expr::Number(3)
+            ]))
         )
     }
 }
