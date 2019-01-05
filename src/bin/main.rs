@@ -20,5 +20,12 @@ fn main() -> io::Result<()> {
     let input = "(+ 2 2)";
     let results = evaluator::eval(input);
 
+    printer::print_to(results.as_slice(), io::stdout());
+
+    println!("");
+
+    let input = "+";
+    let results = evaluator::eval(input);
+
     printer::print_to(results.as_slice(), io::stdout())
 }
