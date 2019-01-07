@@ -3,7 +3,7 @@ use std::io;
 use ansi_term::Color;
 use linefeed::{Interface, ReadResult, Terminal};
 
-use crate::evaluator;
+use crate::evaluator::{self, prelude, Env};
 use crate::printer;
 
 static HISTORY_FILE: &str = "ubiquity.history";
@@ -38,6 +38,8 @@ pub fn run() -> io::Result<()> {
         }
     }
 
+    let mut env = prelude::env();
+
     loop {
         match reader.read_line()? {
             ReadResult::Input(input) => {
@@ -45,7 +47,7 @@ pub fn run() -> io::Result<()> {
                     continue;
                 }
                 reader.add_history_unique(input.clone());
-                rep(&input)?
+                rep(&input, &mut env)?
             }
             ReadResult::Eof => {
                 print!("^D");
@@ -65,7 +67,7 @@ pub fn run() -> io::Result<()> {
     Ok(())
 }
 
-fn rep(input: &str) -> io::Result<()> {
-    let results = evaluator::eval(input);
+fn rep(input: &str, env: &mut Env) -> io::Result<()> {
+    let results = evaluator::eval(input, env);
     printer::println_to(io::stdout(), results.as_slice())
 }
