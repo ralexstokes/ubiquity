@@ -185,6 +185,55 @@ mod tests {
         eval(exprs, &mut env)
     }
 
+    #[test]
+    fn test_env_simple() {
+        let mut env = prelude::env();
+        let exprs = vec![Expr::List(vec![
+            Expr::Symbol("def".into()),
+            Expr::Symbol("foo".into()),
+            Expr::Number(333),
+        ])];
+
+        let results = eval(exprs, &mut env);
+        let result = results.first().unwrap().clone().unwrap();
+        assert_eq!(Expr::Symbol("foo".into()), result);
+
+        let exprs = vec![Expr::Symbol("foo".into())];
+        let results = eval(exprs, &mut env);
+        let result = results.first().unwrap().clone().unwrap();
+        assert_eq!(Expr::Number(333), result);
+    }
+
+    #[test]
+    fn test_env_evaluating() {
+        let mut env = prelude::env();
+        let exprs = vec![Expr::List(vec![
+            Expr::Symbol("def".into()),
+            Expr::Symbol("inc".into()),
+            Expr::List(vec![
+                Expr::Symbol("fn*".into()),
+                Expr::Vector(vec![Expr::Symbol("a".into())]),
+                Expr::List(vec![
+                    Expr::Symbol("+".into()),
+                    Expr::Symbol("a".into()),
+                    Expr::Number(1),
+                ]),
+            ]),
+        ])];
+
+        let results = eval(exprs, &mut env);
+        let result = results.first().unwrap().clone().unwrap();
+        assert_eq!(Expr::Symbol("inc".into()), result);
+
+        let exprs = vec![Expr::List(vec![
+            Expr::Symbol("inc".into()),
+            Expr::Number(1),
+        ])];
+        let results = eval(exprs, &mut env);
+        let result = results.first().unwrap().clone().unwrap();
+        assert_eq!(Expr::Number(2), result);
+    }
+
     macro_rules! eval_tests {
         ($($name:ident: $value:expr,)*) => {
             $(
