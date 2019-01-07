@@ -21,3 +21,8 @@ pub fn print_to(mut out: impl io::Write, exprs: &[Result<Expr>]) -> io::Result<(
     }
     result
 }
+
+pub fn println_to(mut out: impl io::Write, exprs: &[Result<Expr>]) -> io::Result<()> {
+    print_to(&mut out, exprs)?;
+    writeln!(&mut out, "")
+}
