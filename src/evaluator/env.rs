@@ -28,6 +28,10 @@ impl<'e> Env<'e> {
         }
     }
 
+    pub fn add_binding(&mut self, key: &str, value: &Expr) {
+        self.bindings.insert(key.into(), value.clone());
+    }
+
     pub fn add_bindings(&mut self, bindings: &[(String, Expr)]) {
         bindings.into_iter().for_each(|(k, v)| {
             self.bindings.insert(k.clone(), v.clone());
@@ -60,14 +64,29 @@ impl<'e> fmt::Display for Env<'e> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn can_nest_envs() {
+    fn parent_env() -> Env<'static> {
         let mut parent = Env::new();
         let bindings = &[("hi".into(), Expr::Bool(true)), ("there".into(), Expr::Nil)];
         parent.add_bindings(bindings);
+        return parent;
+    }
+
+    #[test]
+    fn can_nest_envs() {
+        let mut parent = parent_env();
 
         let mut child = Env::with_parent(&parent);
         let child_bindings = &[("in-the-child".into(), Expr::Number(22))];
         child.add_bindings(child_bindings);
+    }
+
+    #[test]
+    fn can_insert_stuff() {
+        let mut parent = Env::new();
+
+        let key = "hi";
+        let expr = &Expr::Number(33);
+        parent.add_binding(key, expr);
+        assert_eq!(parent.lookup(key).unwrap(), expr);
     }
 }
