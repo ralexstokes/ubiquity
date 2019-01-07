@@ -45,7 +45,23 @@ fn sub(args: Vec<Expr>) -> Result<Expr> {
     Ok(Expr::Number(0))
 }
 
-static PRELUDE_BINDINGS: &[(&str, &str, HostFn)] = &[("+", "add", add), ("-", "sub", sub)];
+fn list(args: Vec<Expr>) -> Result<Expr> {
+    Ok(Expr::List(args))
+}
+
+fn prn(args: Vec<Expr>) -> Result<Expr> {
+    args.iter().for_each(|arg| {
+        println!("{}", arg);
+    });
+    Ok(Expr::Nil)
+}
+
+static PRELUDE_BINDINGS: &[(&str, &str, HostFn)] = &[
+    ("+", "add", add),
+    ("-", "sub", sub),
+    ("list", "list", list),
+    ("prn", "prn", prn),
+];
 
 pub fn env() -> Env<'static> {
     let bindings = PRELUDE_BINDINGS
