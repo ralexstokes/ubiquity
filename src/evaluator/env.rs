@@ -73,7 +73,7 @@ mod tests {
 
     #[test]
     fn can_nest_envs() {
-        let mut parent = parent_env();
+        let parent = parent_env();
 
         let mut child = Env::with_parent(&parent);
         let child_bindings = &[("in-the-child".into(), Expr::Number(22))];
