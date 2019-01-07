@@ -1,16 +1,27 @@
 use super::env::Env;
+use super::evaluator::Error;
 use super::Result;
 use crate::reader::{Expr, HostFn};
 
 fn add(args: Vec<Expr>) -> Result<Expr> {
-    Ok(Expr::Number(
-        args.into_iter()
-            .map(|arg| match arg {
-                Expr::Number(n) => n,
-                _ => 0,
-            })
-            .sum(),
-    ))
+    if let Some((first, rest)) = args.split_first() {
+        match first {
+            Expr::Number(first) => {
+                let mut result = *first;
+                for elem in rest {
+                    match elem {
+                        Expr::Number(next) => {
+                            result = result + *next;
+                        }
+                        _ => return Err(Error::IncorrectArguments),
+                    }
+                }
+                return Ok(Expr::Number(result));
+            }
+            _ => return Err(Error::IncorrectArguments),
+        }
+    }
+    Ok(Expr::Number(0))
 }
 
 static PRELUDE_BINDINGS: &[(&str, &str, HostFn)] = &[("+", "add", add)];
