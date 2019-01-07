@@ -5,12 +5,14 @@ use super::env::Env;
 use crate::reader::{Error as ParserError, Expr, FnDecl};
 
 static FN_SYMBOL: &'static str = "fn*";
+static DEF_SYMBOL: &'static str = "def";
 
 pub type Result<T> = result::Result<T, Error>;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Error {
     FnMissingArgumentVector,
+    DefRequiresSymbolicName,
     InsufficientArguments,
     UnboundSymbol(Expr),
     /// WrongArity indicates a `fn*` evaluation where the number of args passed did not match the number of params requested.
@@ -90,6 +92,7 @@ fn eval_list(exprs: Vec<Expr>, env: &mut Env) -> Result<Expr> {
 fn eval_list_dispatch(first: &Expr, rest: &[Expr], env: &mut Env) -> Result<Expr> {
     match first {
         Expr::Symbol(s) if s == FN_SYMBOL => eval_fn(rest),
+        Expr::Symbol(s) if s == DEF_SYMBOL => eval_def(rest, env),
         _ => eval_expr(first.clone(), env).and_then(|op| {
             let args = rest
                 .iter()
@@ -112,6 +115,26 @@ fn eval_fn(exprs: &[Expr]) -> Result<Expr> {
                 body: rest.to_vec(),
             })),
             _ => Err(Error::FnMissingArgumentVector),
+        })
+}
+
+// (def <symbol> <form>)
+fn eval_def(exprs: &[Expr], env: &mut Env) -> Result<Expr> {
+    exprs
+        .split_first()
+        .ok_or(Error::InsufficientArguments)
+        .and_then(|(first, rest)| match first {
+            Expr::Symbol(name) => eval(rest.to_vec(), env)
+                .split_last()
+                .ok_or(Error::Internal)
+                .and_then(|(last, _)| match last {
+                    Ok(result) => {
+                        env.add_binding(name, result);
+                        Ok(Expr::Symbol(name.clone()))
+                    }
+                    Err(e) => Err(e.clone()),
+                }),
+            _ => Err(Error::DefRequiresSymbolicName),
         })
 }
 
