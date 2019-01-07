@@ -140,10 +140,6 @@ fn eval_def(exprs: &[Expr], env: &mut Env) -> Result<Expr> {
 
 // zip_for_env zips the `params` to the `args` so that the environment can be extended with the appropriate bindings.
 fn zip_for_env(params: &[Expr], args: &[Expr]) -> Result<Vec<(String, Expr)>> {
-    if params.len() != args.len() {
-        return Err(Error::WrongArity(params.len(), args.len()));
-    }
-
     Ok(params
         .iter()
         .filter_map(|param| match param {
@@ -157,6 +153,10 @@ fn zip_for_env(params: &[Expr], args: &[Expr]) -> Result<Vec<(String, Expr)>> {
 fn apply(op: &Expr, args: &[Expr], env: &mut Env) -> Result<Expr> {
     match op {
         Expr::Fn(FnDecl { params, body }) => {
+            if params.len() != args.len() {
+                return Err(Error::WrongArity(params.len(), args.len()));
+            }
+
             let mut local_env = Env::with_parent(env);
             let bindings = zip_for_env(params, args)?;
             local_env.add_bindings(bindings.as_slice());
