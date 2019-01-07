@@ -1,6 +1,6 @@
-use crate::reader::{Expr, HostFn, Result};
-
 use super::env::Env;
+use super::Result;
+use crate::reader::{Expr, HostFn};
 
 fn add(args: Vec<Expr>) -> Result<Expr> {
     Ok(Expr::Number(

@@ -8,9 +8,11 @@ use std::result;
 use itertools::Itertools;
 
 use super::lexer::{Delimiter, Error as LexerError, Lexer, Token};
+use crate::evaluator::Result as EvalResult;
 
 pub type Result<T> = result::Result<T, Error>;
 type LexerIter<'a> = iter::Peekable<iter::Enumerate<Lexer<'a>>>;
+pub type HostFn = fn(Vec<Expr>) -> EvalResult<Expr>;
 
 const INITIAL_NESTING_DEPTH: usize = 10;
 
@@ -42,8 +44,6 @@ pub struct FnDecl {
     pub params: Vec<Expr>,
     pub body: Vec<Expr>,
 }
-
-pub type HostFn = fn(Vec<Expr>) -> Result<Expr>;
 
 fn fmt_seq<'a>(
     f: &mut fmt::Formatter,
