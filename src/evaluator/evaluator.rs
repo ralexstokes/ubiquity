@@ -161,13 +161,8 @@ fn apply(op: &Expr, args: &[Expr], env: &mut Env) -> Result<Expr> {
             let bindings = zip_for_env(params, args)?;
             local_env.add_bindings(bindings.as_slice());
 
-            eval(body.clone(), &mut local_env)
-                .split_last()
-                .ok_or(Error::Internal)
-                .and_then(|(last, _)| match last {
-                    Ok(result) => Ok(result.clone()),
-                    Err(e) => Err(e.clone()),
-                })
+            body.iter()
+                .try_fold(Expr::Nil, |_, form| eval_expr(form.clone(), &mut local_env))
         }
         Expr::PrimitiveFn(_, host_fn) => host_fn(args.to_vec()).map_err(|e| e.into()),
         _ => unimplemented!(),
