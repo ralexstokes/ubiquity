@@ -101,6 +101,7 @@ fn eval_list_dispatch(first: &Expr, rest: &[Expr], env: &mut Env) -> Result<Expr
     }
 }
 
+// (fn* [<args>] <body>)
 fn eval_fn(exprs: &[Expr]) -> Result<Expr> {
     exprs
         .split_first()
