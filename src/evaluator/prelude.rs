@@ -24,7 +24,28 @@ fn add(args: Vec<Expr>) -> Result<Expr> {
     Ok(Expr::Number(0))
 }
 
-static PRELUDE_BINDINGS: &[(&str, &str, HostFn)] = &[("+", "add", add)];
+fn sub(args: Vec<Expr>) -> Result<Expr> {
+    if let Some((first, rest)) = args.split_first() {
+        match first {
+            Expr::Number(first) => {
+                let mut result = *first;
+                for elem in rest {
+                    match elem {
+                        Expr::Number(next) => {
+                            result = result - *next;
+                        }
+                        _ => return Err(Error::IncorrectArguments),
+                    }
+                }
+                return Ok(Expr::Number(result));
+            }
+            _ => return Err(Error::IncorrectArguments),
+        }
+    }
+    Ok(Expr::Number(0))
+}
+
+static PRELUDE_BINDINGS: &[(&str, &str, HostFn)] = &[("+", "add", add), ("-", "sub", sub)];
 
 pub fn env() -> Env<'static> {
     let bindings = PRELUDE_BINDINGS
