@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::convert;
 use std::result;
 
@@ -12,6 +13,7 @@ pub type Result<T> = result::Result<T, Error>;
 #[derive(Debug, PartialEq, Clone)]
 pub enum Error {
     FnMissingArgumentVector,
+    FnParamsMustBeSymbolic,
     DefRequiresSymbolicName,
     InsufficientArguments,
     UnboundSymbol(Expr),
@@ -69,7 +71,15 @@ pub fn eval_expr(expr: Expr, env: &mut Env) -> Result<Expr> {
                 .collect::<Result<Vec<_>>>()?;
             Set(results)
         }
-        Fn(FnDecl { params, body }) => Fn(FnDecl { params, body }),
+        Fn(FnDecl {
+            params,
+            body,
+            captured_bindings,
+        }) => Fn(FnDecl {
+            params,
+            body,
+            captured_bindings,
+        }),
         PrimitiveFn(name, host_fn) => PrimitiveFn(name, host_fn),
     };
     Ok(node)
@@ -91,7 +101,7 @@ fn eval_list(exprs: Vec<Expr>, env: &mut Env) -> Result<Expr> {
 
 fn eval_list_dispatch(first: &Expr, rest: &[Expr], env: &mut Env) -> Result<Expr> {
     match first {
-        Expr::Symbol(s) if s == FN_SYMBOL => eval_fn(rest),
+        Expr::Symbol(s) if s == FN_SYMBOL => eval_fn(rest, env),
         Expr::Symbol(s) if s == DEF_SYMBOL => eval_def(rest, env),
         _ => eval_expr(first.clone(), env).and_then(|op| {
             let args = rest
@@ -104,16 +114,110 @@ fn eval_list_dispatch(first: &Expr, rest: &[Expr], env: &mut Env) -> Result<Expr
     }
 }
 
+fn is_bound(s: &String, bound_symbols: &HashSet<&String>) -> bool {
+    bound_symbols.contains(s)
+}
+
+fn find_captured_bindings(
+    expr: &Expr,
+    env: &Env,
+    bound_symbols: &HashSet<&String>,
+) -> Result<Vec<(String, Expr)>> {
+    match expr {
+        Expr::Symbol(s) => {
+            if is_bound(s, bound_symbols) {
+                Ok(vec![])
+            } else {
+                if let Some(value) = env.lookup(s) {
+                    Ok(vec![(s.clone(), value.clone())])
+                } else {
+                    Err(Error::UnboundSymbol(Expr::Symbol(s.clone())))
+                }
+            }
+        }
+        Expr::List(exprs) => {
+            let mut captures = vec![];
+            for expr in exprs {
+                let mut more_captures = find_captured_bindings(expr, env, bound_symbols)?;
+                captures.append(&mut more_captures);
+            }
+            Ok(captures)
+        }
+        Expr::Vector(exprs) => {
+            let mut captures = vec![];
+            for expr in exprs {
+                let mut more_captures = find_captured_bindings(expr, env, bound_symbols)?;
+                captures.append(&mut more_captures);
+            }
+            Ok(captures)
+        }
+        Expr::Map(exprs) => {
+            let mut captures = vec![];
+            for expr in exprs {
+                let mut more_captures = find_captured_bindings(expr, env, bound_symbols)?;
+                captures.append(&mut more_captures);
+            }
+            Ok(captures)
+        }
+        Expr::Set(exprs) => {
+            let mut captures = vec![];
+            for expr in exprs {
+                let mut more_captures = find_captured_bindings(expr, env, bound_symbols)?;
+                captures.append(&mut more_captures);
+            }
+            Ok(captures)
+        }
+        Expr::Fn(FnDecl { body: exprs, .. }) => {
+            let mut captures = vec![];
+            for expr in exprs {
+                let mut more_captures = find_captured_bindings(expr, env, bound_symbols)?;
+                captures.append(&mut more_captures);
+            }
+            Ok(captures)
+        }
+        _ => Ok(vec![]),
+    }
+}
+
+fn find_all_captured_bindings(
+    exprs: &[Expr],
+    env: &Env,
+    params: &[Expr], // &[Expr::Symbol]
+) -> Result<Vec<(String, Expr)>> {
+    let bound_symbols = params
+        .iter()
+        .try_fold(HashSet::new(), |mut syms, expr| match expr {
+            Expr::Symbol(s) => {
+                syms.insert(s);
+                Ok(syms)
+            }
+            _ => Err(Error::FnParamsMustBeSymbolic),
+        })?;
+
+    let mut all_captures = vec![];
+
+    for expr in exprs {
+        let mut captures = find_captured_bindings(expr, env, &bound_symbols)?;
+        all_captures.append(&mut captures);
+    }
+    Ok(all_captures)
+}
+
 // (fn* [<args>] <body>)
-fn eval_fn(exprs: &[Expr]) -> Result<Expr> {
+fn eval_fn(exprs: &[Expr], env: &mut Env) -> Result<Expr> {
     exprs
         .split_first()
         .ok_or(Error::InsufficientArguments)
         .and_then(|(first, rest)| match first {
-            Expr::Vector(params) => Ok(Expr::Fn(FnDecl {
-                params: params.to_vec(),
-                body: rest.to_vec(),
-            })),
+            Expr::Vector(params) => {
+                let captured_bindings = find_all_captured_bindings(rest, env, params)?;
+
+                Ok(Expr::Fn(FnDecl {
+                    params: params.to_vec(),
+                    body: rest.to_vec(),
+                    captured_bindings,
+                }))
+            }
             _ => Err(Error::FnMissingArgumentVector),
         })
 }
@@ -152,12 +256,17 @@ fn zip_for_env(params: &[Expr], args: &[Expr]) -> Result<Vec<(String, Expr)>> {
 
 fn apply(op: &Expr, args: &[Expr], env: &mut Env) -> Result<Expr> {
     match op {
-        Expr::Fn(FnDecl { params, body }) => {
+        Expr::Fn(FnDecl {
+            params,
+            body,
+            captured_bindings,
+        }) => {
             if params.len() != args.len() {
                 return Err(Error::WrongArity(params.len(), args.len()));
             }
 
             let mut local_env = Env::with_parent(env);
+            local_env.add_bindings(captured_bindings);
             let bindings = zip_for_env(params, args)?;
             local_env.add_bindings(bindings.as_slice());
 
@@ -227,6 +336,65 @@ mod tests {
         let results = eval(exprs, &mut env);
         let result = results.first().unwrap().clone().unwrap();
         assert_eq!(Expr::Number(2), result);
+    }
+
+    #[test]
+    fn test_simple_closures() {
+        let mut env = prelude::env();
+
+        let exprs = vec![Expr::List(vec![
+            Expr::Symbol("def".into()),
+            Expr::Symbol("add-b".into()),
+            Expr::List(vec![
+                Expr::Symbol("fn*".into()),
+                Expr::Vector(vec![Expr::Symbol("a".into())]),
+                Expr::List(vec![
+                    Expr::Symbol("+".into()),
+                    Expr::Symbol("a".into()),
+                    Expr::Symbol("b".into()),
+                ]),
+            ]),
+        ])];
+
+        let results = eval(exprs, &mut env);
+        let result = results.first().unwrap().clone();
+        assert_eq!(Err(Error::UnboundSymbol(Expr::Symbol("b".into()))), result);
+
+        let def_expr = vec![Expr::List(vec![
+            Expr::Symbol("def".into()),
+            Expr::Symbol("b".into()),
+            Expr::Number(12),
+        ])];
+        let results = eval(def_expr, &mut env);
+        let result = results.first().unwrap().clone().unwrap();
+        assert_eq!(Expr::Symbol("b".into()), result);
+
+        let exprs = vec![Expr::List(vec![
+            Expr::Symbol("def".into()),
+            Expr::Symbol("add-b".into()),
+            Expr::List(vec![
+                Expr::Symbol("fn*".into()),
+                Expr::Vector(vec![Expr::Symbol("a".into())]),
+                Expr::List(vec![
+                    Expr::Symbol("+".into()),
+                    Expr::Symbol("a".into()),
+                    Expr::Symbol("b".into()),
+                ]),
+            ]),
+        ])];
+
+        let results = eval(exprs, &mut env);
+        let result = results.first().unwrap().clone().unwrap();
+        assert_eq!(Expr::Symbol("add-b".into()), result);
+
+        let exprs = vec![Expr::List(vec![
+            Expr::Symbol("add-b".into()),
+            Expr::Number(12),
+        ])];
+
+        let results = eval(exprs, &mut env);
+        let result = results.first().unwrap().clone().unwrap();
+        assert_eq!(Expr::Number(24), result);
     }
 
     macro_rules! eval_tests {

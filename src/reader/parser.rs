@@ -43,6 +43,7 @@ pub enum Expr {
 pub struct FnDecl {
     pub params: Vec<Expr>,
     pub body: Vec<Expr>,
+    pub captured_bindings: Vec<(String, Expr)>,
 }
 
 fn fmt_seq<'a>(
@@ -74,7 +75,7 @@ impl fmt::Display for Expr {
                 write!(f, "#")?;
                 fmt_seq(f, nodes, Delimiter::Brace)
             }
-            Fn(FnDecl { params, body }) => {
+            Fn(FnDecl { params, body, .. }) => {
                 write!(f, "(fn* [")?;
                 write!(f, "{}] ", params.iter().format(" "))?;
                 write!(f, "{}", body.iter().format(" "))?;
