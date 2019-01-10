@@ -461,6 +461,34 @@ mod tests {
                 Number(1),
             ])
         ], vec![Number(2)]),
+        can_eval_if_true: (vec![
+            List(vec![
+                Symbol("if".into()),
+                Bool(true),
+                Number(1),
+                Number(2),
+            ])
+        ], vec![Number(1)]),
+        can_eval_if_false: (vec![
+            List(vec![
+                Symbol("if".into()),
+                Bool(false),
+                Number(1),
+                Number(2),
+            ])
+        ], vec![Number(2)]),
+        can_eval_if_unevaluated: (vec![
+            List(vec![
+                Symbol("if".into()),
+                Bool(false),
+                List(vec![
+                    Symbol("/".into()),
+                    Number(1),
+                    Number(0),
+                ]),
+                Number(2),
+            ])
+        ], vec![Number(2)]),
         can_eval_literals: (vec![
             Nil,
             Bool(true),
