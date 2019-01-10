@@ -7,6 +7,7 @@ use crate::reader::{Error as ParserError, Expr, FnDecl};
 
 static FN_SYMBOL: &'static str = "fn*";
 static DEF_SYMBOL: &'static str = "def";
+static IF_SYMBOL: &'static str = "if";
 
 pub type Result<T> = result::Result<T, Error>;
 
@@ -15,6 +16,7 @@ pub enum Error {
     FnMissingArgumentVector,
     FnParamsMustBeSymbolic,
     DefRequiresSymbolicName,
+    IfPredicateMustBeBooleanCondition,
     UnboundSymbol(Expr),
     /// WrongArity indicates a `fn*` evaluation where the number of args passed did not match the number of params requested.
     // (number_requested, number_provided)
@@ -102,6 +104,7 @@ fn eval_list_dispatch(first: &Expr, rest: &[Expr], env: &mut Env) -> Result<Expr
     match first {
         Expr::Symbol(s) if s == FN_SYMBOL => eval_fn(rest, env),
         Expr::Symbol(s) if s == DEF_SYMBOL => eval_def(rest, env),
+        Expr::Symbol(s) if s == IF_SYMBOL => eval_if(rest, env),
         _ => eval_expr(first, env).and_then(|op| {
             let args = rest
                 .iter()
@@ -240,6 +243,26 @@ fn eval_def(exprs: &[Expr], env: &mut Env) -> Result<Expr> {
                 }),
             _ => Err(Error::DefRequiresSymbolicName),
         })
+}
+
+// (if p? c a)
+fn eval_if(exprs: &[Expr], env: &mut Env) -> Result<Expr> {
+    if exprs.len() != 3 {
+        return Err(Error::WrongArity(3, exprs.len()));
+    }
+
+    let predicate = &exprs[0];
+
+    match eval_expr(predicate, env)? {
+        Expr::Bool(predicate) => {
+            if predicate {
+                eval_expr(&exprs[1], env)
+            } else {
+                eval_expr(&exprs[2], env)
+            }
+        }
+        _ => Err(Error::IfPredicateMustBeBooleanCondition),
+    }
 }
 
 // zip_for_env zips the `params` to the `args` so that the environment can be extended with the appropriate bindings.
