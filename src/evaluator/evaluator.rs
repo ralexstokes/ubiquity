@@ -15,7 +15,6 @@ pub enum Error {
     FnMissingArgumentVector,
     FnParamsMustBeSymbolic,
     DefRequiresSymbolicName,
-    InsufficientArguments,
     UnboundSymbol(Expr),
     /// WrongArity indicates a `fn*` evaluation where the number of args passed did not match the number of params requested.
     // (number_requested, number_provided)
@@ -206,7 +205,8 @@ fn find_all_captured_bindings(
 fn eval_fn(exprs: &[Expr], env: &mut Env) -> Result<Expr> {
     exprs
         .split_first()
-        .ok_or(Error::InsufficientArguments)
+        // TODO should be polyadic, not just 2
+        .ok_or(Error::WrongArity(2, exprs.len()))
         .and_then(|(first, rest)| match first {
             Expr::Vector(params) => {
                 let captured_bindings = find_all_captured_bindings(rest, env, params)?;
@@ -225,7 +225,8 @@ fn eval_fn(exprs: &[Expr], env: &mut Env) -> Result<Expr> {
 fn eval_def(exprs: &[Expr], env: &mut Env) -> Result<Expr> {
     exprs
         .split_first()
-        .ok_or(Error::InsufficientArguments)
+        // TODO should be polyadic, not just 2
+        .ok_or(Error::WrongArity(2, exprs.len()))
         .and_then(|(first, rest)| match first {
             Expr::Symbol(name) => eval(rest.to_vec(), env)
                 .split_last()
