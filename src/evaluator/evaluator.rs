@@ -33,26 +33,26 @@ impl convert::From<ParserError> for Error {
 
 pub fn eval(exprs: Vec<Expr>, env: &mut Env) -> Vec<Result<Expr>> {
     exprs
-        .into_iter()
+        .iter()
         .map(|expr| eval_expr(expr, env))
         .collect::<Vec<Result<_>>>()
 }
 
-pub fn eval_expr(expr: Expr, env: &mut Env) -> Result<Expr> {
+pub fn eval_expr(expr: &Expr, env: &mut Env) -> Result<Expr> {
     use self::Expr::*;
 
     let node = match expr {
         Nil => Nil,
-        Bool(b) => Bool(b),
-        Number(n) => Number(n),
-        String(s) => String(s),
-        Comment(s) => Comment(s),
+        Bool(b) => Bool(*b),
+        Number(n) => Number(*n),
+        String(s) => String(s.clone()),
+        Comment(s) => Comment(s.clone()),
         Symbol(s) => eval_symbol(s, env)?,
-        Keyword(s) => Keyword(s),
+        Keyword(s) => Keyword(s.clone()),
         List(exprs) => eval_list(exprs, env)?,
         Vector(exprs) => {
             let results = exprs
-                .into_iter()
+                .iter()
                 .map(|expr| eval_expr(expr, env))
                 .collect::<Result<Vec<_>>>()?;
             Vector(results)
@@ -76,26 +76,26 @@ pub fn eval_expr(expr: Expr, env: &mut Env) -> Result<Expr> {
             body,
             captured_bindings,
         }) => Fn(FnDecl {
-            params,
-            body,
-            captured_bindings,
+            params: params.clone(),
+            body: body.clone(),
+            captured_bindings: captured_bindings.clone(),
         }),
-        PrimitiveFn(name, host_fn) => PrimitiveFn(name, host_fn),
+        PrimitiveFn(name, host_fn) => PrimitiveFn(name.clone(), *host_fn),
     };
     Ok(node)
 }
 
-fn eval_symbol(symbol: String, env: &mut Env) -> Result<Expr> {
+fn eval_symbol(symbol: &str, env: &mut Env) -> Result<Expr> {
     env.lookup(&symbol)
-        .ok_or(Error::UnboundSymbol(Expr::Symbol(symbol)))
+        .ok_or(Error::UnboundSymbol(Expr::Symbol(String::from(symbol))))
         .map(|referent| referent.clone())
 }
 
-fn eval_list(exprs: Vec<Expr>, env: &mut Env) -> Result<Expr> {
+fn eval_list(exprs: &[Expr], env: &mut Env) -> Result<Expr> {
     if let Some((first, rest)) = exprs.split_first() {
         eval_list_dispatch(first, rest, env)
     } else {
-        Ok(Expr::List(exprs))
+        Ok(Expr::List(exprs.to_vec()))
     }
 }
 
@@ -103,10 +103,9 @@ fn eval_list_dispatch(first: &Expr, rest: &[Expr], env: &mut Env) -> Result<Expr
     match first {
         Expr::Symbol(s) if s == FN_SYMBOL => eval_fn(rest, env),
         Expr::Symbol(s) if s == DEF_SYMBOL => eval_def(rest, env),
-        _ => eval_expr(first.clone(), env).and_then(|op| {
+        _ => eval_expr(first, env).and_then(|op| {
             let args = rest
                 .iter()
-                .cloned()
                 .map(|arg| eval_expr(arg, env))
                 .collect::<Result<Vec<_>>>()?;
             apply(&op, args.as_slice(), env)
@@ -271,7 +270,7 @@ fn apply(op: &Expr, args: &[Expr], env: &mut Env) -> Result<Expr> {
             local_env.add_bindings(bindings.as_slice());
 
             body.iter()
-                .try_fold(Expr::Nil, |_, form| eval_expr(form.clone(), &mut local_env))
+                .try_fold(Expr::Nil, |_, form| eval_expr(form, &mut local_env))
         }
         Expr::PrimitiveFn(_, host_fn) => host_fn(args.to_vec()).map_err(|e| e.into()),
         _ => unimplemented!(),

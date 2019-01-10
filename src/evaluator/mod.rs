@@ -16,7 +16,7 @@ pub fn eval(input: &str, env: &mut Env) -> Vec<Result<Expr>> {
         .map(|result| {
             result
                 .map_err(|e| e.into())
-                .and_then(|expr| evaluator::eval_expr(expr, env))
+                .and_then(|expr| evaluator::eval_expr(&expr, env))
         })
         .collect::<Vec<_>>()
 }
