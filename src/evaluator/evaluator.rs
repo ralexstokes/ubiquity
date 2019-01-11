@@ -68,14 +68,14 @@ pub fn eval_expr(expr: &Expr, env: &mut Env) -> Result<Expr> {
         }
         Map(exprs) => {
             let results = exprs
-                .into_iter()
+                .iter()
                 .map(|expr| eval_expr(expr, env))
                 .collect::<Result<Vec<_>>>()?;
             Map(results)
         }
         Set(exprs) => {
             let results = exprs
-                .into_iter()
+                .iter()
                 .map(|expr| eval_expr(expr, env))
                 .collect::<Result<Vec<_>>>()?;
             Set(results)
