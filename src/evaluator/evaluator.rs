@@ -241,6 +241,7 @@ fn eval_def(exprs: &[Expr], env: &mut Env) -> Result<Expr> {
         // TODO should be polyadic, not just 2
         .ok_or(Error::WrongArity(2, exprs.len()))
         .and_then(|(first, rest)| match first {
+            // TODO sink into `eval_do`?
             Expr::Symbol(name) => eval(rest.to_vec(), env)
                 .split_last()
                 .ok_or(Error::Internal)
@@ -339,8 +340,7 @@ fn apply(op: &Expr, args: &[Expr], env: &mut Env) -> Result<Expr> {
             let bindings = zip_for_env(params, args)?;
             local_env.add_bindings(bindings.as_slice());
 
-            body.iter()
-                .try_fold(Expr::Nil, |_, form| eval_expr(form, &mut local_env))
+            eval_do(body, &mut local_env)
         }
         Expr::PrimitiveFn(_, host_fn) => host_fn(args.to_vec()).map_err(|e| e.into()),
         _ => unimplemented!(),
