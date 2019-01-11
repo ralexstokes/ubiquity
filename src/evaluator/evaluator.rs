@@ -28,6 +28,7 @@ pub enum Error {
     WrongArity(usize, usize),
     ArithmeticOverflow,
     ArithmeticDivisionByZero,
+    /// IncorrectArguments indicates a type error to some function or special form
     IncorrectArguments,
     Internal,
     ParserError(ParserError),
