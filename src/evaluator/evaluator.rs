@@ -8,6 +8,7 @@ use crate::reader::{Error as ParserError, Expr, FnDecl};
 static FN_SYMBOL: &'static str = "fn*";
 static DEF_SYMBOL: &'static str = "def";
 static IF_SYMBOL: &'static str = "if";
+static DO_SYMBOL: &'static str = "do";
 
 pub type Result<T> = result::Result<T, Error>;
 
@@ -107,6 +108,7 @@ fn eval_list_dispatch(first: &Expr, rest: &[Expr], env: &mut Env) -> Result<Expr
         Expr::Symbol(s) if s == FN_SYMBOL => eval_fn(rest, env),
         Expr::Symbol(s) if s == DEF_SYMBOL => eval_def(rest, env),
         Expr::Symbol(s) if s == IF_SYMBOL => eval_if(rest, env),
+        Expr::Symbol(s) if s == DO_SYMBOL => eval_do(rest, env),
         _ => eval_expr(first, env).and_then(|op| {
             let args = rest
                 .iter()
@@ -265,6 +267,13 @@ fn eval_if(exprs: &[Expr], env: &mut Env) -> Result<Expr> {
         }
         _ => Err(Error::IfPredicateMustBeBooleanCondition),
     }
+}
+
+// (do exprs*)
+fn eval_do(exprs: &[Expr], env: &mut Env) -> Result<Expr> {
+    exprs
+        .iter()
+        .try_fold(Expr::Nil, |_, expr| eval_expr(expr, env))
 }
 
 // zip_for_env zips the `params` to the `args` so that the environment can be extended with the appropriate bindings.
