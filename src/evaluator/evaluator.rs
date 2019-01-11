@@ -21,6 +21,8 @@ pub enum Error {
     /// WrongArity indicates a `fn*` evaluation where the number of args passed did not match the number of params requested.
     // (number_requested, number_provided)
     WrongArity(usize, usize),
+    ArithmeticOverflow,
+    ArithmeticDivisionByZero,
     IncorrectArguments,
     Internal,
     ParserError(ParserError),

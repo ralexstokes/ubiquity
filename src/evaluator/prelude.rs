@@ -10,9 +10,10 @@ fn add(args: Vec<Expr>) -> Result<Expr> {
                 let mut result = *first;
                 for elem in rest {
                     match elem {
-                        Expr::Number(next) => {
-                            result = result + *next;
-                        }
+                        Expr::Number(next) => match result.checked_add(*next) {
+                            Some(next) => result = next,
+                            None => return Err(Error::ArithmeticOverflow),
+                        },
                         _ => return Err(Error::IncorrectArguments),
                     }
                 }
@@ -31,9 +32,10 @@ fn sub(args: Vec<Expr>) -> Result<Expr> {
                 let mut result = *first;
                 for elem in rest {
                     match elem {
-                        Expr::Number(next) => {
-                            result = result - *next;
-                        }
+                        Expr::Number(next) => match result.checked_sub(*next) {
+                            Some(next) => result = next,
+                            None => return Err(Error::ArithmeticOverflow),
+                        },
                         _ => return Err(Error::IncorrectArguments),
                     }
                 }
@@ -52,9 +54,10 @@ fn mul(args: Vec<Expr>) -> Result<Expr> {
                 let mut result = *first;
                 for elem in rest {
                     match elem {
-                        Expr::Number(next) => {
-                            result = result * *next;
-                        }
+                        Expr::Number(next) => match result.checked_mul(*next) {
+                            Some(next) => result = next,
+                            None => return Err(Error::ArithmeticOverflow),
+                        },
                         _ => return Err(Error::IncorrectArguments),
                     }
                 }
@@ -73,9 +76,10 @@ fn div(args: Vec<Expr>) -> Result<Expr> {
                 let mut result = *first;
                 for elem in rest {
                     match elem {
-                        Expr::Number(next) => {
-                            result = result / *next;
-                        }
+                        Expr::Number(next) => match result.checked_div(*next) {
+                            Some(next) => result = next,
+                            None => return Err(Error::ArithmeticDivisionByZero),
+                        },
                         _ => return Err(Error::IncorrectArguments),
                     }
                 }
