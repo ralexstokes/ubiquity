@@ -7,6 +7,7 @@ use crate::reader::{Error as ParserError, Expr, FnDecl};
 
 static DEF_SYMBOL: &'static str = "def";
 static IF_SYMBOL: &'static str = "if";
+static LET_SYMBOL: &'static str = "let*";
 static DO_SYMBOL: &'static str = "do";
 static FN_SYMBOL: &'static str = "fn*";
 
@@ -18,6 +19,9 @@ pub enum Error {
     FnParamsMustBeSymbolic,
     DefRequiresSymbolicName,
     IfPredicateMustBeBooleanCondition,
+    LetRequiresVectorOfBindings,
+    LetRequiresEvenNumberOfFormsInBindings,
+    LetBindingRequiresSymbolicName,
     UnboundSymbol(Expr),
     /// WrongArity indicates a `fn*` evaluation where the number of args passed did not match the number of params requested.
     // (number_requested, number_provided)
@@ -107,6 +111,7 @@ fn eval_list_dispatch(first: &Expr, rest: &[Expr], env: &mut Env) -> Result<Expr
     match first {
         Expr::Symbol(s) if s == DEF_SYMBOL => eval_def(rest, env),
         Expr::Symbol(s) if s == IF_SYMBOL => eval_if(rest, env),
+        Expr::Symbol(s) if s == LET_SYMBOL => eval_let(rest, env),
         Expr::Symbol(s) if s == DO_SYMBOL => eval_do(rest, env),
         Expr::Symbol(s) if s == FN_SYMBOL => eval_fn(rest, env),
         _ => eval_expr(first, env).and_then(|op| {
@@ -267,6 +272,35 @@ fn eval_if(exprs: &[Expr], env: &mut Env) -> Result<Expr> {
         }
         _ => Err(Error::IfPredicateMustBeBooleanCondition),
     }
+}
+
+// (let* [bindings*] exprs*)
+fn eval_let(exprs: &[Expr], env: &mut Env) -> Result<Expr> {
+    exprs
+        .split_first()
+        .ok_or(Error::WrongArity(2, exprs.len()))
+        .and_then(|(bindings, body)| match bindings {
+            Expr::Vector(bindings) => {
+                if bindings.len() % 2 != 0 {
+                    return Err(Error::LetRequiresEvenNumberOfFormsInBindings);
+                }
+
+                let mut local_env = Env::with_parent(env);
+                for pair in bindings.chunks_exact(2) {
+                    match &pair[0] {
+                        Expr::Symbol(name) => {
+                            let init_value = &pair[1];
+                            let value = eval_expr(init_value, &mut local_env)?;
+                            local_env.add_binding(&name, &value);
+                        }
+                        _ => return Err(Error::LetBindingRequiresSymbolicName),
+                    }
+                }
+
+                eval_do(body, &mut local_env)
+            }
+            _ => Err(Error::LetRequiresVectorOfBindings),
+        })
 }
 
 // (do exprs*)
