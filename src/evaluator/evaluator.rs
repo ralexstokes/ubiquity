@@ -299,6 +299,7 @@ fn eval_if(exprs: &[Expr], env: &mut Env) -> Result<Expr> {
 fn eval_let(exprs: &[Expr], env: &mut Env) -> Result<Expr> {
     exprs
         .split_first()
+        // TODO can be greater than 2
         .ok_or(Error::WrongArity(2, exprs.len()))
         .and_then(|(bindings, body)| match bindings {
             Expr::Vector(bindings) => {
