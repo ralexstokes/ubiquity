@@ -120,7 +120,7 @@ fn eval_list_dispatch(first: &Expr, rest: &[Expr], env: &mut Env) -> Result<Expr
                 .iter()
                 .map(|arg| eval_expr(arg, env))
                 .collect::<Result<Vec<_>>>()?;
-            apply(&op, args.as_slice(), env)
+            invoke(&op, args.as_slice(), env)
         }),
     }
 }
@@ -324,7 +324,7 @@ fn zip_for_env(params: &[Expr], args: &[Expr]) -> Result<Vec<(String, Expr)>> {
         .collect::<Vec<_>>())
 }
 
-fn apply(op: &Expr, args: &[Expr], env: &mut Env) -> Result<Expr> {
+fn invoke(op: &Expr, args: &[Expr], env: &mut Env) -> Result<Expr> {
     match op {
         Expr::Fn(FnDecl {
             params,
