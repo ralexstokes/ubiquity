@@ -2,6 +2,8 @@ use std::collections::HashSet;
 use std::convert;
 use std::result;
 
+use lazy_static::lazy_static;
+
 use super::env::Env;
 use crate::reader::{Error as ParserError, Expr, FnDecl};
 
@@ -10,6 +12,23 @@ static IF_SYMBOL: &'static str = "if";
 static LET_SYMBOL: &'static str = "let*";
 static DO_SYMBOL: &'static str = "do";
 static FN_SYMBOL: &'static str = "fn*";
+
+lazy_static! {
+    /// SPECIAL_SYMBOLS indicate a non-standard evaluation order
+    static ref SPECIAL_SYMBOLS: HashSet<&'static str> = {
+        let mut set = HashSet::new();
+
+        set.insert(DEF_SYMBOL);
+        set.insert(IF_SYMBOL);
+        set.insert(LET_SYMBOL);
+        set.insert(DO_SYMBOL);
+        set.insert(FN_SYMBOL);
+        set.insert(LOOP_SYMBOL);
+        set.insert(RECUR_SYMBOL);
+
+        set
+    };
+}
 
 pub type Result<T> = result::Result<T, Error>;
 
@@ -126,7 +145,7 @@ fn eval_list_dispatch(first: &Expr, rest: &[Expr], env: &mut Env) -> Result<Expr
 }
 
 fn is_bound(s: &String, bound_symbols: &HashSet<&String>) -> bool {
-    bound_symbols.contains(s)
+    bound_symbols.contains(s) || SPECIAL_SYMBOLS.contains(s.as_str())
 }
 
 fn find_captured_bindings(
@@ -349,6 +368,7 @@ fn invoke(op: &Expr, args: &[Expr], env: &mut Env) -> Result<Expr> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::eval as eval_str;
     use super::super::prelude;
     use super::Expr::*;
     use super::*;
@@ -464,6 +484,17 @@ mod tests {
         let results = eval(exprs, &mut env);
         let result = results.first().unwrap().clone().unwrap();
         assert_eq!(Expr::Number(24), result);
+    }
+
+    #[test]
+    fn closures_respect_special_forms() {
+        let input = "(def fact (fn* [n] (if (= n 1) n (* n (fact (dec n))))))";
+        // (def fact (fn* [n] (..)))
+        // (def fact (fn* fact [n]))
+        let mut env = prelude::env();
+        let results = eval_str(input, &mut env);
+        println!("{:?}", results);
+        assert!(false);
     }
 
     macro_rules! eval_tests {
