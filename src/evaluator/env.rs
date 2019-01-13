@@ -89,4 +89,19 @@ mod tests {
         parent.add_binding(key, expr);
         assert_eq!(parent.lookup(key).unwrap(), expr);
     }
+
+    #[test]
+    fn can_overwrite_stuff() {
+        let mut parent = Env::new();
+
+        let key = "hi";
+        let expr = &Expr::Number(33);
+        parent.add_binding(key, expr);
+        assert_eq!(parent.lookup(key).unwrap(), expr);
+
+        let key = "hi";
+        let expr = &Expr::Number(44);
+        parent.add_binding(key, expr);
+        assert_eq!(parent.lookup(key).unwrap(), expr);
+    }
 }
