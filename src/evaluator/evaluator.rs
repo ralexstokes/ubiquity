@@ -581,6 +581,8 @@ mod tests {
         can_eval_if_true: ("(if true 1 2)", "1"),
         can_eval_if_false: ("(if false 1 2)", "2"),
         can_eval_if_unevaluated: ("(if false (/ 1 0) 2)", "2"),
+        can_eval_loop_no_recur: ("(loop* [n 10] n)", "10"),
+        can_eval_loop_recur: ("(loop* [n 5 acc 1] (if (= n 1) acc (recur (dec n) (* n acc))))", "120"),
     }
 
     #[test]
