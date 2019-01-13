@@ -428,6 +428,7 @@ mod tests {
     use super::super::prelude;
     use super::Expr::*;
     use super::*;
+    use crate::reader;
 
     fn run_eval(exprs: Vec<Expr>) -> Vec<Result<Expr>> {
         let mut env = prelude::env();
@@ -553,76 +554,38 @@ mod tests {
         assert!(false);
     }
 
-    macro_rules! eval_tests {
+    macro_rules! eval_from_src_tests {
         ($($name:ident: $value:expr,)*) => {
             $(
                 #[test]
                 fn $name() {
-                    let (input, expected): (Vec<Expr>, Vec<Expr>) = $value;
-                    let expected_results: Vec<Result<Expr>> = expected.into_iter().map(|expr| Ok(expr)).collect();
+                    let (input, expected): (&str, &str) = $value;
 
-                    let results = run_eval(input);
+                    let mut env = prelude::env();
+                    let results = eval_str(input, &mut env);
 
+                    let expected_results = reader::read(expected)
+                        .into_iter()
+                        .map(|result| result.map_err(|e| e.into()))
+                        .collect::<Vec<_>>();
                     assert_eq!(expected_results, results);
                 }
             )*
         }
     }
 
-    eval_tests! {
-        can_eval_empty: (vec![], vec![]),
-        can_eval_simple_arith: (vec![
-            List(vec![
-                Symbol("+".into()),
-                Number(2),
-                Number(2),
-            ]),
-        ], vec![Number(4)]),
-        can_eval_fn: (vec![
-            List(vec![
-                List(vec![
-                    Symbol("fn*".into()),
-                    Vector(vec![
-                        Symbol("a".into())
-                    ]),
-                    List(vec![
-                        Symbol("+".into()),
-                        Symbol("a".into()),
-                        Number(1),
-                    ])
-                ]),
-                Number(1),
-            ])
-        ], vec![Number(2)]),
-        can_eval_if_true: (vec![
-            List(vec![
-                Symbol("if".into()),
-                Bool(true),
-                Number(1),
-                Number(2),
-            ])
-        ], vec![Number(1)]),
-        can_eval_if_false: (vec![
-            List(vec![
-                Symbol("if".into()),
-                Bool(false),
-                Number(1),
-                Number(2),
-            ])
-        ], vec![Number(2)]),
-        can_eval_if_unevaluated: (vec![
-            List(vec![
-                Symbol("if".into()),
-                Bool(false),
-                List(vec![
-                    Symbol("/".into()),
-                    Number(1),
-                    Number(0),
-                ]),
-                Number(2),
-            ])
-        ], vec![Number(2)]),
-        can_eval_literals: (vec![
+    eval_from_src_tests! {
+        can_eval_empty_from_src: ("()", "()"),
+        can_eval_simple_arith: ("(+ 2 2)", "4"),
+        can_eval_fn: ("((fn* [a] (+ a 1)) 1)", "2"),
+        can_eval_if_true: ("(if true 1 2)", "1"),
+        can_eval_if_false: ("(if false 1 2)", "2"),
+        can_eval_if_unevaluated: ("(if false (/ 1 0) 2)", "2"),
+    }
+
+    #[test]
+    fn can_eval_simple_exprs() {
+        let input_exprs = vec![
             Nil,
             Bool(true),
             Bool(false),
@@ -637,7 +600,7 @@ mod tests {
                 Number(22),
                 String("hi".into()),
                 String("there".into()),
-                String("eval".into())
+                String("eval".into()),
             ]),
             Map(vec![]),
             Map(vec![Keyword("a".into()), Number(22)]),
@@ -645,9 +608,10 @@ mod tests {
             Set(vec![
                 String("hi".into()),
                 String("there".into()),
-                String("eval".into())
+                String("eval".into()),
             ]),
-        ], vec![
+        ];
+        let output_exprs = vec![
             Nil,
             Bool(true),
             Bool(false),
@@ -662,7 +626,7 @@ mod tests {
                 Number(22),
                 String("hi".into()),
                 String("there".into()),
-                String("eval".into())
+                String("eval".into()),
             ]),
             Map(vec![]),
             Map(vec![Keyword("a".into()), Number(22)]),
@@ -670,8 +634,15 @@ mod tests {
             Set(vec![
                 String("hi".into()),
                 String("there".into()),
-                String("eval".into())
+                String("eval".into()),
             ]),
-        ]),
+        ];
+
+        let results = run_eval(input_exprs);
+        let expected_results = output_exprs
+            .into_iter()
+            .map(|expr| Ok(expr))
+            .collect::<Vec<_>>();
+        assert_eq!(expected_results, results);
     }
 }
