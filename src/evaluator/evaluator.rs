@@ -12,6 +12,8 @@ static IF_SYMBOL: &'static str = "if";
 static LET_SYMBOL: &'static str = "let*";
 static DO_SYMBOL: &'static str = "do";
 static FN_SYMBOL: &'static str = "fn*";
+static LOOP_SYMBOL: &'static str = "loop*";
+static RECUR_SYMBOL: &'static str = "recur";
 
 lazy_static! {
     /// SPECIAL_SYMBOLS indicate a non-standard evaluation order
@@ -41,6 +43,7 @@ pub enum Error {
     LetRequiresVectorOfBindings,
     LetRequiresEvenNumberOfFormsInBindings,
     LetBindingRequiresSymbolicName,
+    LocalBindingsMustBeVectorForm,
     UnboundSymbol(Expr),
     /// WrongArity indicates a `fn*` evaluation where the number of args passed did not match the number of params requested.
     // (number_requested, number_provided)
@@ -109,6 +112,7 @@ pub fn eval_expr(expr: &Expr, env: &mut Env) -> Result<Expr> {
             captured_bindings: captured_bindings.clone(),
         }),
         PrimitiveFn(name, host_fn) => PrimitiveFn(name.clone(), *host_fn),
+        Recur(values) => Recur(values.clone()),
     };
     Ok(node)
 }
@@ -134,6 +138,8 @@ fn eval_list_dispatch(first: &Expr, rest: &[Expr], env: &mut Env) -> Result<Expr
         Expr::Symbol(s) if s == LET_SYMBOL => eval_let(rest, env),
         Expr::Symbol(s) if s == DO_SYMBOL => eval_do(rest, env),
         Expr::Symbol(s) if s == FN_SYMBOL => eval_fn(rest, env),
+        Expr::Symbol(s) if s == LOOP_SYMBOL => eval_loop(rest, env),
+        Expr::Symbol(s) if s == RECUR_SYMBOL => eval_recur(rest, env),
         _ => eval_expr(first, env).and_then(|op| {
             let args = rest
                 .iter()
@@ -321,7 +327,7 @@ fn eval_let(exprs: &[Expr], env: &mut Env) -> Result<Expr> {
 
                 eval_do(body, &mut local_env)
             }
-            _ => Err(Error::LetRequiresVectorOfBindings),
+            _ => Err(Error::LocalBindingsMustBeVectorForm),
         })
 }
 
@@ -330,6 +336,55 @@ fn eval_do(exprs: &[Expr], env: &mut Env) -> Result<Expr> {
     exprs
         .iter()
         .try_fold(Expr::Nil, |_, expr| eval_expr(expr, env))
+}
+
+// [name0 val0 name1 val1 ...], [val0' val1' ...] ~> [name0 val0' name1 val1' ...]
+// NOTE: assuming some invariants hold as this function should only be called after we have successfully passed a call to `eval_let` where they are checked.
+fn update_bindings_values(bindings: &Expr, new_values: &[Expr]) -> Result<Expr> {
+    match bindings {
+        Expr::Vector(bindings) => {
+            let new_bindings = bindings
+                .chunks_exact(2)
+                .into_iter()
+                .zip(new_values.iter())
+                .flat_map(|(pair, new_value)| {
+                    let name = &pair[0];
+                    vec![name.clone(), new_value.clone()]
+                })
+                .collect::<Vec<_>>();
+            Ok(Expr::Vector(new_bindings))
+        }
+        _ => Err(Error::LocalBindingsMustBeVectorForm),
+    }
+}
+
+// (loop [bindings*] body)
+fn eval_loop(exprs: &[Expr], env: &mut Env) -> Result<Expr> {
+    // TODO ensure any recur is in tail position
+    let mut result = eval_let(exprs, env)?;
+
+    while let Expr::Recur(new_values) = result {
+        let updated_bindings = update_bindings_values(&exprs[0], &new_values)?;
+
+        let mut new_exprs = vec![];
+        new_exprs.push(updated_bindings);
+        new_exprs.extend_from_slice(&exprs[1..]);
+
+        // TODO can save some work by calling "`eval_let_inner`"
+        result = eval_let(&new_exprs, env)?;
+    }
+
+    Ok(result)
+}
+
+// (recur bindings*)
+fn eval_recur(exprs: &[Expr], env: &mut Env) -> Result<Expr> {
+    let mut evaled_exprs = vec![];
+    for expr in exprs {
+        let expr = eval_expr(expr, env)?;
+        evaled_exprs.push(expr);
+    }
+    Ok(Expr::Recur(evaled_exprs))
 }
 
 // zip_for_env zips the `params` to the `args` so that the environment can be extended with the appropriate bindings.
