@@ -15,6 +15,7 @@ const COMMENT_CHAR: char = ';';
 const STRING_CHAR: char = '"';
 const NEWLINE_CHAR: char = '\n';
 const DISPATCH_CHAR: char = '#';
+const QUOTE_CHAR: char = '\'';
 
 lazy_static! {
     /// SPECIAL_CHARS are characters indicative of a non-symbolic atom
@@ -65,6 +66,7 @@ pub enum Token<'input> {
     Comment(&'input str),
     Symbol(&'input str),
     Dispatch,
+    Quote,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -227,6 +229,10 @@ impl<'input> Lexer<'input> {
             .map(|_| Token::Dispatch)
             .ok_or(Error::Internal)
     }
+
+    fn consume_quote(&mut self) -> Result<Token<'input>> {
+        self.consume().map(|_| Token::Quote).ok_or(Error::Internal)
+    }
 }
 
 impl<'a> iter::Iterator for Lexer<'a> {
@@ -239,6 +245,7 @@ impl<'a> iter::Iterator for Lexer<'a> {
             None => return None,
             // The order is important here
             Some(&(_, DISPATCH_CHAR)) => self.consume_dispatch(),
+            Some(&(_, QUOTE_CHAR)) => self.consume_quote(),
             Some(&(_, OPEN_PAREN)) => self.consume_delimiter(Token::Open, Delimiter::Paren),
             Some(&(_, CLOSE_PAREN)) => self.consume_delimiter(Token::Close, Delimiter::Paren),
             Some(&(_, OPEN_BRACKET)) => self.consume_delimiter(Token::Open, Delimiter::Bracket),
@@ -573,6 +580,23 @@ mod tests {
 
         let input = "";
         let expected_tokens = vec![];
+        run_lex_test(input, expected_tokens);
+    }
+
+    #[test]
+    fn can_lex_quotes() {
+        let input = "'(1 2)";
+        let expected_tokens = vec![
+            Token::Quote,
+            Token::Open(Delimiter::Paren),
+            Token::Number("1"),
+            Token::Number("2"),
+            Token::Close(Delimiter::Paren),
+        ];
+        run_lex_test(input, expected_tokens);
+
+        let input = "hi'";
+        let expected_tokens = vec![Token::Symbol("hi'".into())];
         run_lex_test(input, expected_tokens);
     }
 

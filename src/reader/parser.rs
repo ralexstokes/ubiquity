@@ -21,6 +21,7 @@ static KEYWORD_CHAR: char = ':';
 static NIL_LITERAL: &str = "nil";
 static TRUE_LITERAL: &str = "true";
 static FALSE_LITERAL: &str = "false";
+static QUOTE_LITERAL: &str = "quote";
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Expr {
@@ -223,6 +224,9 @@ impl<'a> Parser {
                 Token::Dispatch => {
                     return self.parse_dispatch(iter);
                 }
+                Token::Quote => {
+                    return self.parse_quote(iter);
+                }
                 _ => unreachable!(),
             },
             Err(ref e) => Err(e.into()),
@@ -299,6 +303,11 @@ impl<'a> Parser {
             Expr::Map(nodes) => Expr::Set(nodes),
             _ => unimplemented!(),
         })
+    }
+
+    fn parse_quote(&mut self, iter: &mut LexerIter) -> Result<Expr> {
+        self.parse_form(iter)
+            .map(|form| Expr::List(vec![Expr::Symbol(QUOTE_LITERAL.into()), form]))
     }
 
     fn push_depth(&mut self, delimiter: Delimiter, index: usize) {
@@ -621,6 +630,33 @@ mod tests {
                 Ok(Expr::Number(1)),
                 Err(Error::UnbalancedDelimiter(Delimiter::Brace, 4))
             ],
+            result
+        );
+    }
+
+    #[test]
+    fn can_parse_quote() {
+        let input = "hi'";
+        let result = run_parse(input);
+        assert_eq!(vec![Ok(Expr::Symbol("hi'".into())),], result);
+
+        let input = "'hi";
+        let result = run_parse(input);
+        assert_eq!(
+            vec![Ok(Expr::List(vec![
+                Expr::Symbol("quote".into()),
+                Expr::Symbol("hi".into()),
+            ]))],
+            result
+        );
+
+        let input = "'{:a 1}";
+        let result = run_parse(input);
+        assert_eq!(
+            vec![Ok(Expr::List(vec![
+                Expr::Symbol("quote".into()),
+                Expr::Map(vec![Expr::Keyword("a".into()), Expr::Number(1),]),
+            ]))],
             result
         );
     }
