@@ -30,7 +30,6 @@ lazy_static! {
         set.insert(COMMENT_CHAR);
         set.insert(STRING_CHAR);
         set.insert(NEWLINE_CHAR);
-        set.insert(DISPATCH_CHAR);
 
         set
     };
@@ -238,6 +237,8 @@ impl<'a> iter::Iterator for Lexer<'a> {
 
         let next_token = match self.peek() {
             None => return None,
+            // The order is important here
+            Some(&(_, DISPATCH_CHAR)) => self.consume_dispatch(),
             Some(&(_, OPEN_PAREN)) => self.consume_delimiter(Token::Open, Delimiter::Paren),
             Some(&(_, CLOSE_PAREN)) => self.consume_delimiter(Token::Close, Delimiter::Paren),
             Some(&(_, OPEN_BRACKET)) => self.consume_delimiter(Token::Open, Delimiter::Bracket),
@@ -248,7 +249,6 @@ impl<'a> iter::Iterator for Lexer<'a> {
             Some(&(_, STRING_CHAR)) => self.consume_string(),
             Some(&(_, COMMENT_CHAR)) => self.consume_comment(),
             Some(&(_, ch)) if Lexer::is_symbolic(ch) => self.consume_symbol(),
-            Some(&(_, DISPATCH_CHAR)) => self.consume_dispatch(),
             Some(&(index, ch)) => Err(Error::UnrecognizedToken(index, ch)),
         };
         Some(next_token)
