@@ -14,6 +14,7 @@ static DO_SYMBOL: &'static str = "do";
 static FN_SYMBOL: &'static str = "fn*";
 static LOOP_SYMBOL: &'static str = "loop*";
 static RECUR_SYMBOL: &'static str = "recur";
+static QUOTE_SYMBOL: &'static str = "quote";
 
 lazy_static! {
     /// SPECIAL_SYMBOLS indicate a non-standard evaluation order
@@ -144,6 +145,7 @@ fn eval_list_dispatch(first: &Expr, rest: &[Expr], env: &mut Env) -> Result<Expr
         Expr::Symbol(s) if s == FN_SYMBOL => eval_fn(rest, env),
         Expr::Symbol(s) if s == LOOP_SYMBOL => eval_loop(rest, env),
         Expr::Symbol(s) if s == RECUR_SYMBOL => eval_recur(rest, env),
+        Expr::Symbol(s) if s == QUOTE_SYMBOL => eval_quote(rest),
         _ => eval_expr(first, env).and_then(|op| {
             let args = rest
                 .iter()
@@ -391,6 +393,15 @@ fn eval_recur(exprs: &[Expr], env: &mut Env) -> Result<Expr> {
     Ok(Expr::Recur(evaled_exprs))
 }
 
+fn eval_quote(exprs: &[Expr]) -> Result<Expr> {
+    if exprs.len() != 1 {
+        return Err(Error::WrongArity(1, exprs.len()));
+    }
+
+    let expr = &exprs[0];
+    Ok(expr.clone())
+}
+
 // zip_for_env zips the `params` to the `args` so that the environment can be extended with the appropriate bindings.
 fn zip_for_env(params: &[Expr], args: &[Expr]) -> Result<Vec<(String, Expr)>> {
     Ok(params
@@ -621,6 +632,8 @@ mod tests {
         can_eval_if_unevaluated: ("(if false (/ 1 0) 2)", "2"),
         can_eval_loop_no_recur: ("(loop* [n 10] n)", "10"),
         can_eval_loop_recur: ("(loop* [n 5 acc 1] (if (= n 1) acc (recur (dec n) (* n acc))))", "120"),
+        can_eval_quote: ("(quote (1 2 3))", "(1 2 3)"),
+        can_eval_quote_more: ("(quote hi)", "hi"),
         closures_respect_special_forms: ("(def foo (fn* [n] (if n 1 0)))", "foo"),
     }
 
