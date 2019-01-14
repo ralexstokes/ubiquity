@@ -543,17 +543,6 @@ mod tests {
         assert_eq!(Expr::Number(24), result);
     }
 
-    #[test]
-    fn closures_respect_special_forms() {
-        let input = "(def fact (fn* [n] (if (= n 1) n (* n (fact (dec n))))))";
-        // (def fact (fn* [n] (..)))
-        // (def fact (fn* fact [n]))
-        let mut env = prelude::env();
-        let results = eval_str(input, &mut env);
-        println!("{:?}", results);
-        assert!(false);
-    }
-
     macro_rules! eval_from_src_tests {
         ($($name:ident: $value:expr,)*) => {
             $(
@@ -583,6 +572,7 @@ mod tests {
         can_eval_if_unevaluated: ("(if false (/ 1 0) 2)", "2"),
         can_eval_loop_no_recur: ("(loop* [n 10] n)", "10"),
         can_eval_loop_recur: ("(loop* [n 5 acc 1] (if (= n 1) acc (recur (dec n) (* n acc))))", "120"),
+        closures_respect_special_forms: ("(def foo (fn* [n] (if n 1 0)))", "foo"),
     }
 
     #[test]
