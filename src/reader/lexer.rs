@@ -17,7 +17,7 @@ const NEWLINE_CHAR: char = '\n';
 const DISPATCH_CHAR: char = '#';
 
 lazy_static! {
-    /// SPECIAL_CHARS indicate a leading character indicative of a
+    /// SPECIAL_CHARS are characters indicative of a non-symbolic atom
     static ref SPECIAL_CHARS: HashSet<char> = {
         let mut set = HashSet::new();
 
