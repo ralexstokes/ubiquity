@@ -44,6 +44,10 @@ pub enum Error {
     LetRequiresEvenNumberOfFormsInBindings,
     LetBindingRequiresSymbolicName,
     LocalBindingsMustBeVectorForm,
+    CannotInvoke {
+        op: Expr,
+        args: Vec<Expr>,
+    },
     UnboundSymbol(Expr),
     /// WrongArity indicates a `fn*` evaluation where the number of args passed did not match the number of params requested.
     // (number_requested, number_provided)
@@ -399,8 +403,50 @@ fn zip_for_env(params: &[Expr], args: &[Expr]) -> Result<Vec<(String, Expr)>> {
         .collect::<Vec<_>>())
 }
 
+fn lookup(coll: &Expr, key: &Expr, not_found: &Expr) -> Result<Expr> {
+    // TODO want a generic lookup
+    match coll {
+        Expr::Map(_map) => Ok(Expr::Symbol("map-lookup".into())),
+        Expr::Set(_set) => Ok(Expr::Symbol("set-lookup".into())),
+        _ => Ok(not_found.clone()),
+    }
+}
+
 fn invoke(op: &Expr, args: &[Expr], env: &mut Env) -> Result<Expr> {
+    let nil = &Expr::Nil;
+
     match op {
+        key @ Expr::Symbol(_) | key @ Expr::Keyword(_) => {
+            match args {
+                [ref coll] => lookup(coll, key, nil),
+                [ref coll, ref not_found] => lookup(coll, key, not_found),
+                // TODO extend to range??
+                _ => Err(Error::WrongArity(3, args.len())),
+            }
+        }
+        coll @ Expr::Vector(_) => {
+            match args {
+                [ref key] => lookup(coll, key, nil),
+                // TODO extend to range??
+                _ => Err(Error::WrongArity(1, args.len())),
+            }
+        }
+        coll @ Expr::Map(_) => {
+            // TODO get key in exprs from key in args
+            match args {
+                [ref key] => lookup(coll, key, nil),
+                [ref key, ref not_found] => lookup(coll, key, not_found),
+                // TODO extend to range??
+                _ => Err(Error::WrongArity(3, args.len())),
+            }
+        }
+        coll @ Expr::Set(_) => {
+            match args {
+                [ref key] => lookup(coll, key, nil),
+                // TODO extend to range??
+                _ => Err(Error::WrongArity(1, args.len())),
+            }
+        }
         Expr::Fn(FnDecl {
             params,
             body,
@@ -418,7 +464,10 @@ fn invoke(op: &Expr, args: &[Expr], env: &mut Env) -> Result<Expr> {
             eval_do(body, &mut local_env)
         }
         Expr::PrimitiveFn(_, host_fn) => host_fn(args.to_vec()).map_err(|e| e.into()),
-        _ => unimplemented!(),
+        _ => Err(Error::CannotInvoke {
+            op: op.clone(),
+            args: args.to_vec(),
+        }),
     }
 }
 
