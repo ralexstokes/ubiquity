@@ -1,6 +1,6 @@
 use std::io;
 
-use ubiquity::repl;
+use sigil::repl;
 
 fn main() -> io::Result<()> {
     repl::run()

@@ -6,14 +6,14 @@ use linefeed::{Interface, ReadResult, Terminal};
 use crate::evaluator::{self, prelude, Env};
 use crate::printer;
 
-static HISTORY_FILE: &str = "ubiquity.history";
+static HISTORY_FILE: &str = "sigil.history";
 
 fn configure_reader<T: Terminal>(reader: &Interface<T>) -> io::Result<()> {
     let mut reader = reader.lock_reader();
     reader.set_blink_matching_paren(true);
 
-    let style = Color::Purple.bold();
-    let text = "ubiquity=> ";
+    let style = Color::White.bold();
+    let text = "=> ";
 
     reader.set_prompt(&format!(
         "\x01{prefix}\x02{text}\x01{suffix}\x02",
@@ -24,7 +24,7 @@ fn configure_reader<T: Terminal>(reader: &Interface<T>) -> io::Result<()> {
 }
 
 pub fn run() -> io::Result<()> {
-    let reader = Interface::new("ubiquity")?;
+    let reader = Interface::new("sigil")?;
     configure_reader(&reader)?;
 
     if let Err(e) = reader.load_history(HISTORY_FILE) {
