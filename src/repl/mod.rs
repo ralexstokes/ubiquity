@@ -6,7 +6,7 @@ use linefeed::{Interface, ReadResult, Terminal};
 use crate::evaluator::{self, prelude, Env};
 use crate::printer;
 
-static HISTORY_FILE: &str = "sigil.history";
+static HISTORY_FILE: &str = "ubiquity.history";
 
 fn configure_reader<T: Terminal>(reader: &Interface<T>) -> io::Result<()> {
     let mut reader = reader.lock_reader();
@@ -24,7 +24,7 @@ fn configure_reader<T: Terminal>(reader: &Interface<T>) -> io::Result<()> {
 }
 
 pub fn run() -> io::Result<()> {
-    let reader = Interface::new("sigil")?;
+    let reader = Interface::new("ubiquity")?;
     configure_reader(&reader)?;
 
     if let Err(e) = reader.load_history(HISTORY_FILE) {
