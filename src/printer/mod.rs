@@ -7,22 +7,17 @@ pub fn print_expr_to(mut out: impl io::Write, expr: &Expr) -> io::Result<()> {
     write!(&mut out, "{}", expr)
 }
 
-pub fn print_to(mut out: impl io::Write, exprs: &[Result<Expr>]) -> io::Result<()> {
-    let mut result = Ok(());
+pub fn println_to(mut out: impl io::Write, exprs: &[Result<Expr>]) -> io::Result<()> {
     for expr in exprs {
         match expr {
             Ok(expr) => {
-                result = print_expr_to(&mut out, &expr);
+                print_expr_to(&mut out, &expr)?;
+                writeln!(&mut out, "")?;
             }
             Err(e) => {
-                result = write!(&mut out, "{:?}", e);
+                writeln!(&mut out, "error: {}", e)?;
             }
         }
     }
-    result
-}
-
-pub fn println_to(mut out: impl io::Write, exprs: &[Result<Expr>]) -> io::Result<()> {
-    print_to(&mut out, exprs)?;
-    writeln!(&mut out, "")
+    Ok(())
 }

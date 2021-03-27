@@ -2,6 +2,8 @@ use super::env::Env;
 use super::evaluator::Error;
 use super::Result;
 use crate::reader::{Expr, HostFn};
+use itertools::Itertools;
+use std::fmt::Write;
 
 fn add(args: Vec<Expr>) -> Result<Expr> {
     if let Some((first, rest)) = args.split_first() {
@@ -53,6 +55,7 @@ fn mul(args: Vec<Expr>) -> Result<Expr> {
             Expr::Number(first) => {
                 let mut result = *first;
                 for elem in rest {
+                    dbg!(&elem);
                     match elem {
                         Expr::Number(next) => match result.checked_mul(*next) {
                             Some(next) => result = next,
@@ -96,9 +99,16 @@ fn list(args: Vec<Expr>) -> Result<Expr> {
 }
 
 fn prn(args: Vec<Expr>) -> Result<Expr> {
-    args.iter().for_each(|arg| {
-        println!("{}", arg);
-    });
+    let result = args
+        .iter()
+        .map(|expr| {
+            let mut output = String::new();
+            let _ = write!(&mut output, "{}", expr);
+            output
+        })
+        .intersperse(" ".to_string())
+        .collect::<String>();
+    println!("{}", result);
     Ok(Expr::Nil)
 }
 
@@ -142,6 +152,26 @@ fn dec(args: Vec<Expr>) -> Result<Expr> {
         })
 }
 
+fn count(args: Vec<Expr>) -> Result<Expr> {
+    use Expr::*;
+
+    if args.len() != 1 {
+        return Err(Error::IncorrectArguments);
+    }
+
+    let result = match &args[0] {
+        Nil => 0,
+        String(s) => s.len(),
+        List(elems) => elems.len(),
+        Vector(elems) => elems.len(),
+        Map(bindings) => bindings.len() / 2,
+        Set(bindings) => bindings.len(),
+        _ => return Err(Error::IncorrectArguments),
+    };
+
+    Ok(Number(result as i64))
+}
+
 static PRELUDE_BINDINGS: &[(&str, &str, HostFn)] = &[
     ("+", "add", add),
     ("-", "sub", sub),
@@ -152,6 +182,7 @@ static PRELUDE_BINDINGS: &[(&str, &str, HostFn)] = &[
     ("=", "equal", eq),
     ("inc", "increment", inc),
     ("dec", "decrement", dec),
+    ("count", "count", count),
 ];
 
 pub fn env() -> Env<'static> {

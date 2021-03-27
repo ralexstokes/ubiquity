@@ -300,6 +300,7 @@ impl<'a> Parser {
 
     fn parse_dispatch(&mut self, iter: &mut LexerIter) -> Result<Expr> {
         self.parse_form(iter).map(|form| match form {
+            // TODO ensure set semantics
             Expr::Map(nodes) => Expr::Set(nodes),
             _ => unimplemented!(),
         })

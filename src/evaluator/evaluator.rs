@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::convert;
+use std::fmt;
 use std::result;
 
 use lazy_static::lazy_static;
@@ -64,6 +65,28 @@ pub enum Error {
 impl convert::From<ParserError> for Error {
     fn from(parser_error: ParserError) -> Self {
         Error::ParserError(parser_error)
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use Error::*;
+        match self {
+            FnMissingArgumentVector => {
+                write!(f, "missing argument vector in function definition")
+            }
+            UnboundSymbol(symbol) => {
+                write!(f, "unbound symbol `{}`", symbol)
+            }
+            WrongArity(expected, provided) => {
+                write!(
+                    f,
+                    "function expected {} arguments but {} were provided",
+                    expected, provided
+                )
+            }
+            e @ _ => write!(f, "{:?}", e),
+        }
     }
 }
 
@@ -427,7 +450,7 @@ fn invoke(op: &Expr, args: &[Expr], env: &mut Env) -> Result<Expr> {
     let nil = &Expr::Nil;
 
     match op {
-        key @ Expr::Symbol(_) | key @ Expr::Keyword(_) => {
+        key @ Expr::Keyword(_) => {
             match args {
                 [ref coll] => lookup(coll, key, nil),
                 [ref coll, ref not_found] => lookup(coll, key, not_found),
